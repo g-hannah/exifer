@@ -240,40 +240,42 @@ get_date_time(file_t *file, int endian)
 	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x02" : (char *)"\x02\x90", 2, endian);
 	if (p && isdigit(*((char *)datum.data_start)))
 	  {
-			printf("%*s %s%s", OUT_WIDTH, "Digitised:", (char *)datum.data_start, _EOL);
+			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Digitised:",
+								FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
+								(char *)datum.data_start, _EOL);
 			++count;
-			if (o.WIPE_ALL || o.WIPE_DATE)
+			if (FLAGS & (WIPE_ALL | WIPE_DATE))
 				wipe_data(file, &datum);
 	  }
 	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x03" : (char *)"\x03\x90", 2, endian);
 	if (p && isdigit(*((char *)datum.data_start)))
 	  {
-			printf("%*s %s%s", OUT_WIDTH, "Original:", (char *)datum.data_start, _EOL);
+			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Original:",
+							FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
+							(char *)datum.data_start, _EOL);
 			++count;
-			if (o.WIPE_ALL || o.WIPE_DATE)
+			if (FLAGS & (WIPE_ALL | WIPE_DATE))
 				wipe_data(file, &datum);
 	  }
 	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x04" : (char *)"\x04\x90", 2, endian);
 	if (p && isdigit(*((char *)datum.data_start)))
 	  {
-			printf("%*s %s%s", OUT_WIDTH, "Created:", (char *)datum.data_start, _EOL);
+			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Created:",
+							FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
+							(char *)datum.data_start, _EOL);
 			++count;
-			if (o.WIPE_ALL || o.WIPE_DATE)
+			if (FLAGS & (WIPE_ALL | WIPE_DATE))
 					wipe_data(file, &datum);
 	  }
 	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x32" : (char *)"\x32\x01", 2, endian);
 	if (p && isdigit(*((char *)datum.data_start)))
 	  {
-			printf("%*s %s%s", OUT_WIDTH, "Modified:", (char *)datum.data_start, _EOL);
+			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Modified:",
+							FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
+							(char *)datum.data_start, _EOL);
 			++count;
-			if (o.WIPE_ALL || o.WIPE_DATE)
+			if (FLAGS & (WIPE_ALL | WIPE_DATE))
 				wipe_data(file, &datum);
-	  }
-
-	if (count)
-	  {
-			if (o.WIPE_ALL || o.WIPE_DATE)
-				printf("Wiped Date/Time EXIF data%s", _EOL);
 	  }
 
 	restore_signal_handler();
@@ -313,8 +315,10 @@ get_make_model(file_t *file, int endian)
 	if (p && isalpha(*((char *)datum.data_start)))
 	  {
 			++count;
-			printf("%*s %s%s", OUT_WIDTH, "Manufacturer:", (char *)datum.data_start, _EOL);
-			if (o.WIPE_ALL || o.WIPE_DEVICE)
+			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Manufacturer:",
+								FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+								(char *)datum.data_start, _EOL);
+			if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 				wipe_data(file, &datum);
 	  }
 
@@ -322,8 +326,10 @@ get_make_model(file_t *file, int endian)
 	if (p && isalpha(*((char *)datum.data_start)))
 	  {
 			++count;
-			printf("%*s %s%s", OUT_WIDTH, "Model:", (char *)datum.data_start, _EOL);
-			if (o.WIPE_ALL || o.WIPE_DEVICE)
+			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Model:",
+								FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+								(char *)datum.data_start, _EOL);
+			if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 				wipe_data(file, &datum);
 	  }
 
@@ -331,15 +337,11 @@ get_make_model(file_t *file, int endian)
 	if (p && (isalpha(*((char *)datum.data_start)) || isdigit(*((char *)datum.data_start))))
 	  {
 			++count;
-			printf("%*s %s%s", OUT_WIDTH, "Software:", (char *)datum.data_start, _EOL);
-			if (o.WIPE_ALL || o.WIPE_DEVICE)
+			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Software:",
+								FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+								(char *)datum.data_start, _EOL);
+			if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 				wipe_data(file, &datum);
-	  }
-
-	if (count)
-		{
-			if (o.WIPE_ALL || o.WIPE_DEVICE)
-				printf("Wiped all Make/Model Data%s", _EOL);
 	  }
 
 	restore_signal_handler();
@@ -367,15 +369,11 @@ get_unique_id(file_t *file, int endian)
 	if (p && isascii(*((char *)datum.data_start)))
 	  {
 			++count;
-			printf("%*s %s%s", OUT_WIDTH, "Unique ID:", (char *)datum.data_start, _EOL);
-			if (o.WIPE_ALL || o.WIPE_UID)
+			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Unique ID:",
+								FLAGS & (WIPE_ALL | WIPE_UID) ? "\e[9;02m" : "",
+								(char *)datum.data_start, _EOL);
+			if (FLAGS & (WIPE_ALL | WIPE_UID))
 					wipe_data(file, &datum);
-	  }
-
-	if (count)
-	  {
-			if (o.WIPE_ALL || o.WIPE_UID)
-				printf("Wiped Unique Image ID Data%s", _EOL);
 	  }
 
 	restore_signal_handler();
@@ -403,8 +401,10 @@ get_image_comment(file_t *file, int endian)
 	if (p && isascii(*((char *)datum.data_start)))
 	  {
 			++count;
-			printf("%*s %s%s", OUT_WIDTH, "Comment:", (char *)datum.data_start, _EOL);
-			if (o.WIPE_ALL || o.WIPE_COMMENT)
+			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Comment:",
+							FLAGS & (WIPE_ALL | WIPE_COMMENT) ? "\e[9;02m" : "",
+							(char *)datum.data_start, _EOL);
+			if (FLAGS & (WIPE_ALL | WIPE_COMMENT))
 				wipe_data(file, &datum);
 	  }
 	memset(&datum, 0, sizeof(datum));
@@ -412,16 +412,12 @@ get_image_comment(file_t *file, int endian)
 	if (p && isascii(*((char *)datum.data_start)))
 	{
 		++count;
-		printf("%*s %s%s", OUT_WIDTH, "Comment:", (char *)datum.data_start, _EOL);
-		if (o.WIPE_ALL || o.WIPE_COMMENT)
+		printf("%*s %s%s%s\e[m", OUT_WIDTH, "Comment:",
+							FLAGS & (WIPE_ALL | WIPE_COMMENT) ? "\e[9;02m" : "",
+							(char *)datum.data_start, _EOL);
+		if (FLAGS & (WIPE_ALL | WIPE_COMMENT))
 			wipe_data(file, &datum);
 	} 
-
-	if (count)
-	  {
-			if (o.WIPE_ALL || o.WIPE_COMMENT)
-				printf("Wiped Image Comment Data%s", _EOL);
-	  }
 
 	restore_signal_handler();
 

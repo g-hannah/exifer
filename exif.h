@@ -7,7 +7,7 @@
 # define _EOL "\n"
 #endif
 
-#define BUILD			"0.2.2"
+#define BUILD			"0.2.3"
 
 /*
  * TODO: Reliably determine the end of
@@ -19,6 +19,7 @@
 #define APP1_MARKER		"\xff\xe1"
 #define END_MARKER		"\xff\xd8"
 #define SECTION_COL		"\e[4;01m\e[38;5;245m"
+#define INFO_COL			"  \e[3;01m\e[38;5;125m"
 
 #define TYPE_ASCII			0x0002
 #define TYPE_SHORT			0x0003
@@ -51,15 +52,12 @@ typedef struct file_t
 	void				*new_end;
 } file_t;
 
-struct Options
-{
-	int	WIPE_ALL;
-	int WIPE_DATE;
-	int WIPE_DEVICE;
-	int	WIPE_LOCATION;
-	int	WIPE_UID;
-	int WIPE_COMMENT;
-};
+#define WIPE_DATE			0x1u
+#define WIPE_DEVICE		0x2u
+#define WIPE_LOCATION	0x4u
+#define WIPE_UID			0x8u
+#define WIPE_COMMENT	0x10u
+#define WIPE_ALL			0x20u
 
 typedef struct Options Options;
 
@@ -73,10 +71,10 @@ int get_test(file_t *, int) __nonnull ((1)) __wur;
 void *get_limit(file_t *) __nonnull ((1)) __wur;
 
 /* Global Variables */
-Options o;
-char		*prog_name;
-off_t		EXIF_DATA_OFFSET;
-file_t	infile;
-void 		*lim;
+char			*prog_name;
+off_t			EXIF_DATA_OFFSET;
+file_t		infile;
+void 			*lim;
+unsigned	FLAGS;
 
 #endif

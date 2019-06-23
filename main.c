@@ -13,7 +13,6 @@
 #include "logging.h"
 
 static int get_options(int, char *[]) __wur;
-static void exif_wiper_init(void) __attribute__ ((constructor));
 static void usage(int) __attribute__ ((__noreturn__));
 
 int
@@ -155,32 +154,33 @@ get_options(int argc, char *argv[])
 {
 	int					i;
 
+	FLAGS = 0;
 	for (i = 1; i < argc; ++i)
 	  {
 			if (strncmp("--help", argv[i], 6) == 0)
 				usage(EXIT_SUCCESS);
 			else
 			if (strcmp("--wipe-all", argv[i]) == 0)
-				o.WIPE_ALL = 1;
+				FLAGS |= WIPE_ALL;
 			else
 			if (strcmp("--wipe-date", argv[i]) == 0)
-				o.WIPE_DATE = 1;
+				FLAGS |= WIPE_DATE;
 			else
 			if (strcmp("--wipe-device", argv[i]) == 0)
-				o.WIPE_DEVICE = 1;
+				FLAGS |= WIPE_DEVICE;
 			else
 			if (strcmp("--wipe-location", argv[i]) == 0)
-				o.WIPE_LOCATION = 1;
+				FLAGS |= WIPE_LOCATION;
 			else
 			if (strcmp("--wipe-uid", argv[i]) == 0)
-				o.WIPE_UID = 1;
+				FLAGS |= WIPE_UID;
 			else
 			if (strcmp("--wipe-comment", argv[i]) == 0)
-				o.WIPE_COMMENT = 1;
+				FLAGS |= WIPE_COMMENT;
 	  }
 
-	if (o.WIPE_ALL
-			&& (o.WIPE_DATE || o.WIPE_DEVICE || o.WIPE_LOCATION))
+	if ((FLAGS & WIPE_ALL)
+			&& (FLAGS & WIPE_DATE || FLAGS & WIPE_DEVICE || FLAGS & WIPE_LOCATION))
 	  {
 			fprintf(stderr, "--wipe-all cannot be specified with other options\n");
 			errno = EINVAL;
@@ -214,10 +214,4 @@ usage(int exit_type)
 				_EOL, _EOL);
 
 	exit(exit_type);
-}
-
-void
-exif_wiper_init(void)
-{
-	memset(&o, 0, sizeof(o));
 }
