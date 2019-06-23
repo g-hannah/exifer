@@ -1,0 +1,11 @@
+.*
+!.gitignore
+*.o
+exif_wipe
+*.txt
+*.jpg
+*.JPG
+*.png
+*.PNG
+*.gif
+*.GIF
