@@ -176,7 +176,7 @@ main(int argc, char *argv[])
 
 	/* Miscellaneous data */
 	fprintf(stdout, "%s%s\tMisc Data\e[m%s", _EOL, SECTION_COL, _EOL);
-	cnt += get_miscellaneous_data(&infile, (const int)endianness);
+	cnt = get_miscellaneous_data(&infile, (const int)endianness);
 	if (!cnt)
 		printf(" (None)%s", _EOL);
 
