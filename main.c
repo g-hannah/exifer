@@ -122,7 +122,9 @@ main(int argc, char *argv[])
 	  }
 
 	p = (unsigned char *)data;
-	if (!(p = strstr((char *)data, "Exif")))
+	while (strncmp("Exif", p, 4) != 0 && p < (unsigned char *)infile.map_end)
+		++p;
+	if (p == (unsigned char *)infile.map_end)
 	{
 		fprintf(stdout, "No EXIF data in %s\n", argv[1]);
 		goto end;
