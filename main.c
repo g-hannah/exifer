@@ -86,7 +86,7 @@ main(int argc, char *argv[])
 
 	infile.size = statb.st_size;
 
-	fprintf(stdout, "\e[5;01m\e[35;5;2m  File: %s%s"
+	fprintf(stdout, "\e[38;5;19m  File: %s%s"
 			"  Size: %lu bytes%s"
 			"  Opts: %s%s%s%s%s%s%s%s"
 			"\e[m",
@@ -122,13 +122,11 @@ main(int argc, char *argv[])
 	  }
 
 	p = (unsigned char *)data;
-	while (strncmp((char *)"Exif", (char *)p, 4) != 0 && p < (unsigned char *)data + statb.st_size)
-		++p;
-	if (p == ((unsigned char *)data + statb.st_size))
-		{
-			fprintf(stdout, "No EXIF data in %s\n", argv[1]);
-			goto end;
-	  }
+	if (!(p = strstr((char *)data, "Exif")))
+	{
+		fprintf(stdout, "No EXIF data in %s\n", argv[1]);
+		goto end;
+	}
 
 	while (strncmp((char *)"MM", (char *)p, 2) != 0
 			&& strncmp((char *)"II", (char *)p, 2) != 0
@@ -136,9 +134,6 @@ main(int argc, char *argv[])
 		++p;
 
 	EXIF_DATA_OFFSET = (off_t)(p - (unsigned char *)data);
-#ifdef DEBUG
-	printf("EXIF_DATA_OFFSET: %lu\n", (size_t)EXIF_DATA_OFFSET);
-#endif
 
 	if (p == ((unsigned char *)data + statb.st_size))
 	  {
@@ -154,7 +149,7 @@ main(int argc, char *argv[])
 
 	map_end = (void *)((unsigned char *)data + statb.st_size);
 
-	fprintf(stdout, "\e[38;5;8m  ----EXIF Data----\e[m%s%s", _EOL, _EOL);
+	fprintf(stdout, "\e[38;5;8m  ----------------EXIF Data----------------\e[m%s%s", _EOL, _EOL);
 
 #ifdef DEBUG
 	cnt = get_test(&infile, (const int)endianness);
@@ -163,20 +158,29 @@ main(int argc, char *argv[])
 	else
 		printf("Found test data...\n");
 #else
+
+	/* Date and time data */
 	fprintf(stdout, "%s\tDate/Time Data\e[m%s", SECTION_COL, _EOL);
 	cnt = get_date_time(&infile, (const int)endianness);
 	if (!cnt)
-		printf("(None)%s", _EOL);
-	fprintf(stdout, "%s\tDevice Data\e[m%s", SECTION_COL, _EOL);
+		printf(" (None)%s", _EOL);
+
+	/* Device / software data */
+	fprintf(stdout, "%s%s\tDevice Data\e[m%s", _EOL, SECTION_COL, _EOL);
+
 	cnt = get_make_model(&infile, (const int)endianness);
 	if (!cnt)
-		printf("(None)%s", _EOL);
-	fprintf(stdout, "%s\tOther Data\e[m%s", SECTION_COL, _EOL);
-	cnt = get_unique_id(&infile, (const int)endianness);
-	cnt += get_image_comment(&infile, (const int)endianness);
+		printf(" (None)%s", _EOL);
+
+	/* Miscellaneous data */
+	fprintf(stdout, "%s%s\tMisc Data\e[m%s", _EOL, SECTION_COL, _EOL);
+	cnt += get_miscellaneous_data(&infile, (const int)endianness);
 	if (!cnt)
-		printf("(None)%s", _EOL);
-	//get_latitude(data, map_end, endianness);
+		printf(" (None)%s", _EOL);
+
+	/* TODO
+	 * GPS data
+	 */
 #endif
 
 	end:
@@ -224,6 +228,9 @@ get_options(int argc, char *argv[])
 			else
 			if (strcmp("--wipe-comment", argv[i]) == 0)
 				FLAGS |= WIPE_COMMENT;
+			else
+			if (strcmp("--wipe-misc", argv[i]) == 0)
+				FLAGS |= WIPE_MISC;
 	  }
 
 	if ((FLAGS & WIPE_ALL)
@@ -251,6 +258,7 @@ usage(int exit_type)
 				"  --wipe-location\tWipe GPS data%s"
 				"  --wipe-uid\t\tWipe the Unique Image ID%s"
 				"  --wipe-comment\t\tWipe Image Comment%s"
+				"  --wipe-misc\t\tWipe Miscellaneous Data%s"
 				"%s"
 				"(No options specified = just view data)%s",
 				_EOL,
@@ -258,7 +266,7 @@ usage(int exit_type)
 				prog_name, _EOL,
 				_EOL,
 				_EOL, _EOL, _EOL, _EOL, _EOL, _EOL,
-				_EOL, _EOL);
+				_EOL, _EOL, _EOL);
 
 	exit(exit_type);
 }
