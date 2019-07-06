@@ -48,9 +48,18 @@ main(int argc, char *argv[])
 	infile.size = statb.st_size;
 
 	fprintf(stdout, "\e[5;01m\e[35;5;2m  File: %s%s"
-						"  Size: %lu bytes\e[m%s%s%s",
-						argv[1], _EOL,
-						statb.st_size, _EOL, _EOL, _EOL);
+			"  Size: %lu bytes%s"
+			"  Opts: %s%s%s%s%s%s%s%s"
+			"\e[m",
+			argv[1], _EOL,
+			statb.st_size, _EOL,
+			!FLAGS ? "None" : "",
+			FLAGS & WIPE_ALL ? "Wipe all " : "",
+			FLAGS & WIPE_DATE ? "Wipe date " : "",
+			FLAGS & WIPE_DEVICE ? "Wipe device " : "",
+			FLAGS & WIPE_UID ? "Wipe UID " : "",
+			FLAGS & WIPE_COMMENT ? "Wipe Comment " : "",
+			_EOL, _EOL);
 
 	fd = open(argv[1], O_RDWR);
 
