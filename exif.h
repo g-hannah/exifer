@@ -18,7 +18,7 @@
  */
 #define APP1_MARKER		"\xff\xe1"
 #define END_MARKER		"\xff\xd8"
-#define SECTION_COL		"\e[4;01m\e[38;5;245m"
+#define SECTION_COL		"\e[38;5;31m"
 #define INFO_COL			"  \e[3;01m\e[38;5;125m"
 
 #define TYPE_ASCII			0x0002
@@ -26,6 +26,8 @@
 #define TYPE_RATIONAL		0x0005
 #define TYPE_COMMENT		0x0007
 #define TYPE_SRATIONAL	0x000a
+
+#define OUT_WIDTH				19
 
 #define MAX_PATH_LEN		1024
 
@@ -57,15 +59,15 @@ typedef struct file_t
 #define WIPE_LOCATION	0x4u
 #define WIPE_UID			0x8u
 #define WIPE_COMMENT	0x10u
-#define WIPE_ALL			0x20u
+#define WIPE_MISC			0x20u
+#define WIPE_ALL			0x40u
 
 typedef struct Options Options;
 
 int get_date_time(file_t *, int) __nonnull ((1)) __wur;
 int get_latitude(file_t *, int) __nonnull ((1)) __wur;
 int get_make_model(file_t *, int) __nonnull ((1)) __wur;
-int get_unique_id(file_t *, int) __nonnull ((1)) __wur;
-int get_image_comment(file_t *, int) __nonnull ((1)) __wur;
+int get_miscellaneous_data(file_t *, int) __nonnull ((1)) __wur;
 int get_test(file_t *, int) __nonnull ((1)) __wur;
 
 void *get_limit(file_t *) __nonnull ((1)) __wur;
