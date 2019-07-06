@@ -344,6 +344,17 @@ get_make_model(file_t *file, int endian)
 				wipe_data(file, &datum);
 	  }
 
+	p = get_data_offset(file, &datum, endian ? (char *)"\x92\x7c" : (char *)"\x7c\x92", 2, endian);
+	if (p && (isalpha(*((char *)datum.data_start)) || isdigit(*((char *)datum.data_start))))
+	  {
+			++count;
+			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Makernote:",
+								FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+								(char *)datum.data_start, _EOL);
+			if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
+				wipe_data(file, &datum);
+	  }
+
 	restore_signal_handler();
 
 	return count;
