@@ -20,6 +20,7 @@
 #define END_MARKER		"\xff\xd8"
 #define SECTION_COL		"\e[4;01m\e[38;5;245m"
 #define INFO_COL			"  \e[3;01m\e[38;5;125m"
+#define BANNER_COL		"\e[38;5;208m"
 
 #define TYPE_ASCII			0x0002
 #define TYPE_SHORT			0x0003
