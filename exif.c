@@ -12,7 +12,7 @@
 #include "exif.h"
 #include "logging.h"
 
-#define OUT_WIDTH					14
+#define DATA_COL			"\e[38;5;88m"
 
 static struct sigaction new_act, old_act;
 static sigjmp_buf				__sigsegv__;
@@ -240,8 +240,9 @@ get_date_time(file_t *file, int endian)
 	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x02" : (char *)"\x02\x90", 2, endian);
 	if (p && isdigit(*((char *)datum.data_start)))
 	  {
-			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Digitised:",
+			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Digitised:",
 								FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
+								DATA_COL,
 								(char *)datum.data_start, _EOL);
 			++count;
 			if (FLAGS & (WIPE_ALL | WIPE_DATE))
@@ -250,8 +251,9 @@ get_date_time(file_t *file, int endian)
 	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x03" : (char *)"\x03\x90", 2, endian);
 	if (p && isdigit(*((char *)datum.data_start)))
 	  {
-			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Original:",
+			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Original:",
 							FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
+							DATA_COL,
 							(char *)datum.data_start, _EOL);
 			++count;
 			if (FLAGS & (WIPE_ALL | WIPE_DATE))
@@ -260,8 +262,9 @@ get_date_time(file_t *file, int endian)
 	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x04" : (char *)"\x04\x90", 2, endian);
 	if (p && isdigit(*((char *)datum.data_start)))
 	  {
-			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Created:",
+			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Created:",
 							FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
+							DATA_COL,
 							(char *)datum.data_start, _EOL);
 			++count;
 			if (FLAGS & (WIPE_ALL | WIPE_DATE))
@@ -270,8 +273,9 @@ get_date_time(file_t *file, int endian)
 	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x32" : (char *)"\x32\x01", 2, endian);
 	if (p && isdigit(*((char *)datum.data_start)))
 	  {
-			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Modified:",
+			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Modified:",
 							FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
+							DATA_COL,
 							(char *)datum.data_start, _EOL);
 			++count;
 			if (FLAGS & (WIPE_ALL | WIPE_DATE))
@@ -315,9 +319,10 @@ get_make_model(file_t *file, int endian)
 	if (p && isalpha(*((char *)datum.data_start)))
 	  {
 			++count;
-			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Manufacturer:",
-								FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-								(char *)datum.data_start, _EOL);
+			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Manufacturer:",
+							FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+							DATA_COL,
+							(char *)datum.data_start, _EOL);
 			if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 				wipe_data(file, &datum);
 	  }
@@ -326,9 +331,10 @@ get_make_model(file_t *file, int endian)
 	if (p && isalpha(*((char *)datum.data_start)))
 	  {
 			++count;
-			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Model:",
-								FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-								(char *)datum.data_start, _EOL);
+			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Model:",
+							FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+							DATA_COL,
+							(char *)datum.data_start, _EOL);
 			if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 				wipe_data(file, &datum);
 	  }
@@ -337,9 +343,10 @@ get_make_model(file_t *file, int endian)
 	if (p && (isalpha(*((char *)datum.data_start)) || isdigit(*((char *)datum.data_start))))
 	  {
 			++count;
-			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Software:",
-								FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-								(char *)datum.data_start, _EOL);
+			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Software:",
+							FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+							DATA_COL,
+							(char *)datum.data_start, _EOL);
 			if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 				wipe_data(file, &datum);
 	  }
@@ -348,9 +355,10 @@ get_make_model(file_t *file, int endian)
 	if (p && (isalpha(*((char *)datum.data_start)) || isdigit(*((char *)datum.data_start))))
 	  {
 			++count;
-			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Makernote:",
-								FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-								(char *)datum.data_start, _EOL);
+			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Makernote:",
+							FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+							DATA_COL,
+							(char *)datum.data_start, _EOL);
 			if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 				wipe_data(file, &datum);
 	  }
@@ -361,60 +369,45 @@ get_make_model(file_t *file, int endian)
 }
 
 int
-get_unique_id(file_t *file, int endian)
+get_miscellaneous_data(file_t *file, int endian)
 {
-	void			*p = NULL;
-	int				count = 0;
 	datum_t		datum;
+	void			*p = NULL;
+	int				count;
 
 	set_signal_handler();
 	if (sigsetjmp(__sigsegv__, 0) != 0)
-	  {
-			log_error("Caught segmentation fault - exiting!");
-			exit(EXIT_FAILURE);
-	  }
+	{
+		log_error("Caught segmentation fault - exiting!");
+		exit(EXIT_FAILURE);
+	}
 
+	count = 0;
 	memset(&datum, 0, sizeof(datum));
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\xa4\x20" : (char *)"\x20\xa4", 2, endian);
+	/* Get image description */
+	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x0e" : (char *)"\x0e\x01", 2, endian);
 	if (p && isascii(*((char *)datum.data_start)))
-	  {
-			++count;
-			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Unique ID:",
-								FLAGS & (WIPE_ALL | WIPE_UID) ? "\e[9;02m" : "",
-								(char *)datum.data_start, _EOL);
-			if (FLAGS & (WIPE_ALL | WIPE_UID))
-					wipe_data(file, &datum);
-	  }
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Image Description:",
+					FLAGS & (WIPE_ALL | WIPE_MISC) ? "\e[9;02m" : "",
+					DATA_COL,
+					(char *)datum.data_start, _EOL);
 
-	restore_signal_handler();
+		if (FLAGS & (WIPE_ALL | WIPE_MISC))
+			wipe_data(file, &datum);
+	}
 
-	return count;
-}
-
-int
-get_image_comment(file_t *file, int endian)
-{
-	int				count = 0;
-	void			*p = NULL;
-	datum_t		datum;
-
-	set_signal_handler();
-	if (sigsetjmp(__sigsegv__, 0) != 0)
-	  {
-			log_error("Caught segmentation fault - exiting!");
-			exit(EXIT_FAILURE);
-	  }
-
-	memset(&datum, 0, sizeof(datum));
-
+	/* Get comments */
 	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x86" : (char *)"\x86\x90", 2, endian);
 	if (p && isascii(*((char *)datum.data_start)))
 	  {
 			++count;
-			printf("%*s %s%s%s\e[m", OUT_WIDTH, "Comment:",
-							FLAGS & (WIPE_ALL | WIPE_COMMENT) ? "\e[9;02m" : "",
-							(char *)datum.data_start, _EOL);
+			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Comment:",
+						FLAGS & (WIPE_ALL | WIPE_COMMENT) ? "\e[9;02m" : "",
+						DATA_COL,
+						(char *)datum.data_start, _EOL);
 			if (FLAGS & (WIPE_ALL | WIPE_COMMENT))
 				wipe_data(file, &datum);
 	  }
@@ -423,12 +416,26 @@ get_image_comment(file_t *file, int endian)
 	if (p && isascii(*((char *)datum.data_start)))
 	{
 		++count;
-		printf("%*s %s%s%s\e[m", OUT_WIDTH, "Comment:",
-							FLAGS & (WIPE_ALL | WIPE_COMMENT) ? "\e[9;02m" : "",
-							(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Comment:",
+						FLAGS & (WIPE_ALL | WIPE_COMMENT) ? "\e[9;02m" : "",
+						DATA_COL,
+						(char *)datum.data_start, _EOL);
 		if (FLAGS & (WIPE_ALL | WIPE_COMMENT))
 			wipe_data(file, &datum);
-	} 
+	}
+
+	/* Get unique image ID */
+	p = get_data_offset(file, &datum, endian ? (char *)"\xa4\x20" : (char *)"\x20\xa4", 2, endian);
+	if (p && isascii(*((char *)datum.data_start)))
+	  {
+			++count;
+			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Unique ID:",
+							FLAGS & (WIPE_ALL | WIPE_UID) ? "\e[9;02m" : "",
+							DATA_COL,
+							(char *)datum.data_start, _EOL);
+			if (FLAGS & (WIPE_ALL | WIPE_UID))
+					wipe_data(file, &datum);
+	  }
 
 	restore_signal_handler();
 
@@ -449,13 +456,12 @@ get_test(file_t *file, int endian)
 	  }
 
 	memset(&datum, 0, sizeof(datum));
-	p = get_data_offset(file, &datum, endian ? (char *)"\x92\x86" : (char *)"\x86\x92", 2, endian);
+	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x0e" : (char *)"\x0e\x01", 2, endian);
 
 	char		*q = (char *)datum.data_start;
 	int		i;
 
-	for (i = 0; i < (int)datum.len; ++i)
-		printf("0x%02hhx ", *q++);
+	fprintf(stdout, "%s\n", q);
 
 	restore_signal_handler();
 	return 1;
