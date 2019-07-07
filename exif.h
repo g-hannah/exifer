@@ -7,7 +7,7 @@
 # define _EOL "\n"
 #endif
 
-#define BUILD			"0.2.7"
+#define BUILD			"0.2.8"
 
 /*
  * TODO: Reliably determine the end of
