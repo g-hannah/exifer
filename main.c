@@ -153,17 +153,15 @@ main(int argc, char *argv[])
 
 	fprintf(stdout, "\e[38;5;8m  ----------------EXIF Data----------------\e[m%s%s", _EOL, _EOL);
 
-#ifdef DEBUG
-	cnt = get_test(&infile, (const int)endianness);
-	if (!cnt)
-		printf("Found no test data...\n");
-	else
-		printf("Found test data...\n");
-#else
-
 	/* Date and time data */
 	fprintf(stdout, "%s\tDate/Time Data\e[m%s", SECTION_COL, _EOL);
 	cnt = get_date_time(&infile, (const int)endianness);
+	if (!cnt)
+		printf(" (None)%s", _EOL);
+
+	/* GPS data */
+	fprintf(stdout, "%s%s\tGPS Data\e[m%s", _EOL, SECTION_COL, _EOL);
+	cnt = get_gps_data(&infile, (const int)endianness);
 	if (!cnt)
 		printf(" (None)%s", _EOL);
 
@@ -179,11 +177,6 @@ main(int argc, char *argv[])
 	cnt = get_miscellaneous_data(&infile, (const int)endianness);
 	if (!cnt)
 		printf(" (None)%s", _EOL);
-
-	/* TODO
-	 * GPS data
-	 */
-#endif
 
 	end:
 	if (data)
@@ -222,8 +215,8 @@ get_options(int argc, char *argv[])
 			if (strcmp("--wipe-device", argv[i]) == 0)
 				FLAGS |= WIPE_DEVICE;
 			else
-			if (strcmp("--wipe-location", argv[i]) == 0)
-				FLAGS |= WIPE_LOCATION;
+			if (strcmp("--wipe-gps", argv[i]) == 0)
+				FLAGS |= WIPE_GPS;
 			else
 			if (strcmp("--wipe-uid", argv[i]) == 0)
 				FLAGS |= WIPE_UID;
@@ -236,7 +229,7 @@ get_options(int argc, char *argv[])
 	  }
 
 	if ((FLAGS & WIPE_ALL)
-			&& (FLAGS & WIPE_DATE || FLAGS & WIPE_DEVICE || FLAGS & WIPE_LOCATION))
+			&& (FLAGS & WIPE_DATE || FLAGS & WIPE_DEVICE || FLAGS & WIPE_GPS))
 	  {
 			fprintf(stderr, "--wipe-all cannot be specified with other options\n");
 			errno = EINVAL;
@@ -257,7 +250,7 @@ usage(int exit_type)
 				"  --wipe-all\t\tWipe all EXIF data%s"
 				"  --wipe-date\t\tWipe Date/Time data%s"
 				"  --wipe-device\t\tWipe Make/Model data%s"
-				"  --wipe-location\tWipe GPS data%s"
+				"  --wipe-gps\t\tWipe GPS data%s"
 				"  --wipe-uid\t\tWipe the Unique Image ID%s"
 				"  --wipe-comment\t\tWipe Image Comment%s"
 				"  --wipe-misc\t\tWipe Miscellaneous Data%s"

@@ -52,11 +52,12 @@ typedef struct file_t
 	void				*map;
 	void				*map_end;
 	void				*new_end;
+	void				*offset;
 } file_t;
 
 #define WIPE_DATE			0x1u
 #define WIPE_DEVICE		0x2u
-#define WIPE_LOCATION	0x4u
+#define WIPE_GPS			0x4u
 #define WIPE_UID			0x8u
 #define WIPE_COMMENT	0x10u
 #define WIPE_MISC			0x20u
@@ -65,7 +66,7 @@ typedef struct file_t
 typedef struct Options Options;
 
 int get_date_time(file_t *, int) __nonnull ((1)) __wur;
-int get_latitude(file_t *, int) __nonnull ((1)) __wur;
+int get_gps_data(file_t *, int) __nonnull ((1)) __wur;
 int get_make_model(file_t *, int) __nonnull ((1)) __wur;
 int get_miscellaneous_data(file_t *, int) __nonnull ((1)) __wur;
 int get_test(file_t *, int) __nonnull ((1)) __wur;
