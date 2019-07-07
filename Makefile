@@ -14,10 +14,10 @@ $(BINARY): $(OFILES)
 $(OFILES): $(CFILES)
 ifeq ($(DEBUG),1)
 	@echo Debug build $(BUILD)
-	$(CC) -DDEBUG -c $(CFILES)
+	$(CC) $(WFLAGS) -DDEBUG -c $(CFILES)
 else
 	@echo Production build $(BUILD)
-	$(CC) -c $(CFILES)
+	$(CC) $(WFLAGS) -c $(CFILES)
 endif
 
 clean:
