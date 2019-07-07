@@ -241,18 +241,6 @@ get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t ty
 			dptr->data_end = (void *)p;
 			p = NULL;
 
-#ifdef DEBUG
-			fprintf(stderr,
-				"length %u\n"
-				"  type %hu\n"
-				"   tag %hu\n"
-				"offset %u\n",
-				dptr->len,
-				dptr->type,
-				*((uint16_t *)dptr->tag_p),
-				*((uint32_t *)dptr->offset_p));
-#endif
-
 			return (void *)dptr;
 	  }
 }
@@ -411,7 +399,7 @@ get_gps_data(file_t *file, int endian)
 	}
 
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x01" : (char *)"\x01\x00", 2, TYPE_ASCII, endian);
-	if (p && datum.type == TYPE_ASCII && datum.len == 2 && isalpha((char *)datum.data_start))
+	if (p && datum.type == TYPE_ASCII && datum.len == 2)
 	{
 		char		*q = NULL;
 
@@ -429,7 +417,7 @@ get_gps_data(file_t *file, int endian)
 	}
 
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x03" : (char *)"\x03\x00", 2, TYPE_ASCII, endian);
-	if (p && datum.type == TYPE_ASCII && datum.len == 2 && isalpha((char *)datum.data_start))
+	if (p && datum.type == TYPE_ASCII && datum.len == 2)
 	{
 		char		*q = NULL;
 
