@@ -110,10 +110,10 @@ main(int argc, char *argv[])
 
 	lim = get_limit(&infile);
 	if (!lim)
-	  {
-			log_error("Failed to find limit");
-			goto fail;
-	  }
+	{
+		log_error("Failed to find limit");
+		goto fail;
+	}
 
 	p = (unsigned char *)data;
 	while (strncmp("Exif", (char *)p, 4) != 0 && p < (unsigned char *)infile.map_end)

@@ -21,7 +21,7 @@
 #define TYPE_COMMENT		0x0007
 #define TYPE_SRATIONAL	0x000a
 
-#define OUT_WIDTH				19
+#define OUT_WIDTH				20
 #define MAX_PATH_LEN		1024
 
 typedef struct datum_t
@@ -45,7 +45,6 @@ typedef struct file_t
 	void				*map;
 	void				*map_end;
 	void				*new_end;
-	void				*offset;
 } file_t;
 
 #define WIPE_DATE			0x1u
