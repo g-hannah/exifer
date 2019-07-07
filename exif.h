@@ -7,7 +7,7 @@
 # define _EOL "\n"
 #endif
 
-#define BUILD			"0.2.8"
+#define BUILD			"0.2.9"
 
 #define APP1_MARKER		"\xff\xe1"
 #define END_MARKER		"\xff\xd8"
