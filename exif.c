@@ -123,7 +123,7 @@ exif_start(file_t *file)
 static void *
 get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t type, int endian)
 {
-	unsigned char				*p = NULL, *t = NULL;
+	unsigned char		*p = NULL, *t = NULL;
 
 	assert(file);
 	assert(dptr);
@@ -133,21 +133,51 @@ get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t ty
 
 	p = (unsigned char *)exif_start(file);
 	t = (unsigned char *)str;
-	memset(dptr, 0, sizeof(*dptr));
 
-#if 0
-	while ((strncmp(str, (char *)p, slen) != 0
-		|| (endian ? ntohs(*((uint16_t *)((char *)p + slen))) : *((uint16_t *)((char *)p + slen)) != type))
-		&& p < (unsigned char *)lim
-		&& p < (unsigned char *)file->new_end)
-		++p;
-#endif
+	memset(dptr, 0, sizeof(*dptr));
 
 	while ((*p != *t || *(p+1) != *(t+1)
 		|| (endian ? ntohs(*((uint16_t *)((char *)p + slen))) : *((uint16_t *)((char *)p + slen)) != type))
 		&& p < (unsigned char *)lim
 		&& p < (unsigned char *)file->new_end)
 		++p;
+
+#if 0
+	/* Some files have big endian tags but little endian data, and vice versa ... */
+	mixed = 0;
+	while (1)
+	{
+		while ((*p != *t || *(p+1) != *(t+1))
+			&& p < (unsigned char *)lim
+			&& p < (unsigned char *)file->new_end)
+			++p;
+
+		if (p == (unsigned char *)lim || p == (unsigned char *)file->new_end)
+			return NULL;
+
+		__type = (uint16_t *)((char *)p + slen);
+		if (*__type == type)
+		{
+			if (endian)
+				mixed = 1;
+
+			break;
+		}
+		else
+		if (ntohs(*__type) == type)
+		{
+			if (!endian)
+				mixed = 1;
+
+			break;
+		}
+		else
+		{
+			++p;
+			continue;
+		}
+	}
+#endif
 
 	if ((void *)p == lim || (void *)p == file->new_end)
 		return NULL;
@@ -158,91 +188,90 @@ get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t ty
 	dptr->offset_p = (void *)((unsigned char *)p + 8);
 
 	if (endian)
-	  {
-			uint32_t 	*offset = NULL;
-			uint32_t	*len = NULL;
-			uint16_t	*type = NULL;
-			uint8_t		*t = NULL;
+	{
+		uint32_t 	*offset = NULL;
+		uint32_t	*len = NULL;
+		uint16_t	*type = NULL;
+		uint8_t		*t = NULL;
 
-			offset = (uint32_t *)dptr->offset_p;
-			t = (unsigned char *)offset;
-			if (*t == 0)
-				*offset = htonl(*offset);
-			dptr->offset = *offset;
+		offset = (uint32_t *)dptr->offset_p;
+		t = (unsigned char *)offset;
+		if (*t == 0)
+			*offset = htonl(*offset);
+		dptr->offset = *offset;
 
-			len = (uint32_t *)dptr->len_p;
-			*len = ntohl(*len);
-			t = (unsigned char *)len;
-			if (*t == 0)
-				*len = htonl(*len);
-			dptr->len = *len;
+		len = (uint32_t *)dptr->len_p;
+		*len = ntohl(*len);
+		t = (unsigned char *)len;
+		if (*t == 0)
+			*len = htonl(*len);
+		dptr->len = *len;
 
-			type = (uint16_t *)dptr->type_p;
+		type = (uint16_t *)dptr->type_p;
+		*type = ntohs(*type);
+		t = (unsigned char *)type;
+		if (*t == 0)
 			*type = ntohs(*type);
-			t = (unsigned char *)type;
-			if (*t == 0)
-				*type = ntohs(*type);
-			dptr->type = *type;
+		dptr->type = *type;
 
-			offset = NULL;
-			len = NULL;
-			type = NULL;
-			t = NULL;
-	  }
+		offset = NULL;
+		len = NULL;
+		type = NULL;
+		t = NULL;
+	}
 	else
-	  {
-			uint32_t 	*offset = NULL;
-			uint32_t	*len = NULL;
-			uint16_t	*type = NULL;
-			uint8_t		*t = NULL;
+	{
+		uint32_t 	*offset = NULL;
+		uint32_t	*len = NULL;
+		uint16_t	*type = NULL;
+		uint8_t		*t = NULL;
 
-			offset = (uint32_t *)dptr->offset_p;
-			t = (unsigned char *)offset;
-			if (*t == 0)
-			  {
-				*offset = ntohl(*offset);
-			  }
-			dptr->offset = *offset;
+		offset = (uint32_t *)dptr->offset_p;
+		t = (unsigned char *)offset;
+		if (*t == 0)
+		{
+			*offset = ntohl(*offset);
+		}
+		dptr->offset = *offset;
 
-			len = (uint32_t *)dptr->len_p;
-			t = (unsigned char *)len;
-			if (*t == 0)
-				*len = ntohl(*len);
-			dptr->len = *len;
+		len = (uint32_t *)dptr->len_p;
+		t = (unsigned char *)len;
+		if (*t == 0)
+			*len = ntohl(*len);
+		dptr->len = *len;
 
-			type = (uint16_t *)dptr->type_p;
-			t = (unsigned char *)type;
-			if (*t == 0)
-				*type = ntohs(*type);
-			dptr->type = *type;
+		type = (uint16_t *)dptr->type_p;
+		t = (unsigned char *)type;
+		if (*t == 0)
+			*type = ntohs(*type);
+		dptr->type = *type;
 
-			assert(*offset == dptr->offset);
-			offset = NULL;
-			len = NULL;
-			type = NULL;
-			t = NULL;
-	  }
+		offset = NULL;
+		len = NULL;
+		type = NULL;
+		t = NULL;
+	}
 
 	if (dptr->offset >= (lim - file->map) || dptr->offset >= (file->map_end - file->map))
-	  {
-			memset(dptr, 0, sizeof(*dptr));
-			return NULL;
-	  }
+	{
+		memset(dptr, 0, sizeof(*dptr));
+		return NULL;
+	}
 	else
-	  {
-			if ((dptr->type == TYPE_ASCII || dptr->type == TYPE_BYTE) && dptr->len <= 4)
-				dptr->data_start = dptr->offset_p;
-			else
-				dptr->data_start = (void *)((unsigned char *)file->map + dptr->offset + EXIF_DATA_OFFSET);
+	{
+		if ((dptr->type == TYPE_ASCII || dptr->type == TYPE_BYTE) && dptr->len <= 4)
+			dptr->data_start = dptr->offset_p;
+		else
+			dptr->data_start = (void *)((unsigned char *)file->map + dptr->offset + EXIF_DATA_OFFSET);
 
-			unsigned char *p = (unsigned char *)dptr->data_start;
-			while (*p != 0)
-				++p;
-			dptr->data_end = (void *)p;
-			p = NULL;
+		unsigned char *p = (unsigned char *)dptr->data_start;
+		while (*p != 0)
+			++p;
+		dptr->data_end = (void *)p;
+		p = NULL;
 
-			return (void *)dptr;
-	  }
+		return (void *)dptr;
+	}
 }
 
 int
@@ -256,49 +285,69 @@ get_date_time(file_t *file, int endian)
 	count = 0;
 
 	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x02" : (char *)"\x02\x90", 2, TYPE_ASCII, endian);
-	if (p)
-	  {
-			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Digitised:",
-								FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
-								DATA_COL,
-								(char *)datum.data_start, _EOL);
-			++count;
-			if (FLAGS & (WIPE_ALL | WIPE_DATE))
-				wipe_data(file, &datum);
-	  }
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Digitised:",
+					FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
+					DATA_COL,
+					(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DATE))
+			wipe_data(file, &datum);
+	}
+
 	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x03" : (char *)"\x03\x90", 2, TYPE_ASCII, endian);
-	if (p)
-	  {
-			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Original:",
-							FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
-							DATA_COL,
-							(char *)datum.data_start, _EOL);
-			++count;
-			if (FLAGS & (WIPE_ALL | WIPE_DATE))
-				wipe_data(file, &datum);
-	  }
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Original:",
+				FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DATE))
+			wipe_data(file, &datum);
+	}
+
 	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x04" : (char *)"\x04\x90", 2, TYPE_ASCII, endian);
-	if (p)
-	  {
-			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Created:",
-							FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
-							DATA_COL,
-							(char *)datum.data_start, _EOL);
-			++count;
-			if (FLAGS & (WIPE_ALL | WIPE_DATE))
-					wipe_data(file, &datum);
-	  }
-	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x32" : (char *)"\x32\x01", 2, TYPE_ASCII, endian);
-	if (p)
-	  {
-			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Modified:",
-							FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
-							DATA_COL,
-							(char *)datum.data_start, _EOL);
-			++count;
-			if (FLAGS & (WIPE_ALL | WIPE_DATE))
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Created:",
+					FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
+					DATA_COL,
+					(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DATE))
 				wipe_data(file, &datum);
-	  }
+	}
+	 
+	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x32" : (char *)"\x32\x01", 2, TYPE_ASCII, endian);
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Modified:",
+					FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
+					DATA_COL,
+					(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DATE))
+			wipe_data(file, &datum);
+	}
+
+	p = get_data_offset(file, &datum, endian ? (char *)"\xc7\x1b" : (char *)"\x1b\xc7", 2, TYPE_ASCII, endian);
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Preview:",
+				FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DATE))
+			wipe_data(file, &datum); 
+	}
 
 	restore_signal_handler();
 
@@ -322,6 +371,9 @@ get_gps_data(file_t *file, int endian)
 	setup_signal_handler();
 	count = 0;
 
+#ifdef DEBUG
+		fprintf(stderr, "Trying to get version...\n");
+#endif
 	p = get_data_offset(file, &datum, (char *)"\x00\x00", 2, TYPE_BYTE, endian);
 	if (p && datum.type == TYPE_BYTE && datum.len == 4)
 	{
@@ -350,9 +402,13 @@ get_gps_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
+#ifdef DEBUG
+	fprintf(stderr, "Trying to get datestamp\n");
+#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x1d" : (char *)"\x1d\x00", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
+		assert(datum.data_start);
 		++count;
 		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Datestamp:",
 				FLAGS & (WIPE_ALL | WIPE_GPS) ? "\e[9;02m" : "",
@@ -363,12 +419,16 @@ get_gps_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
+#ifdef DEBUG
+	fprintf(stderr, "Trying to get timestamp\n");
+#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x07" : (char *)"\x07\x00", 2, TYPE_RATIONAL, endian);
 	if (p && datum.type == TYPE_RATIONAL && datum.len == 3)
 	{
 		unsigned int		*uptr = NULL;
 		double					hours, minutes, seconds;
 
+		assert(datum.data_start);
 		uptr = (unsigned int *)datum.data_start;
 
 		numerator = *uptr++;
@@ -398,11 +458,15 @@ get_gps_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
+#ifdef DEBUG
+	fprintf(stderr, "Trying to get latitude ref\n");
+#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x01" : (char *)"\x01\x00", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII && datum.len == 2)
 	{
 		char		*q = NULL;
 
+		assert(datum.data_start);
 		++count;
 		q = (char *)datum.data_start;
 
@@ -416,6 +480,9 @@ get_gps_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
+#ifdef DEBUG
+	fprintf(stderr, "Trying to get longitude ref\n");
+#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x03" : (char *)"\x03\x00", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII && datum.len == 2)
 	{
@@ -434,6 +501,9 @@ get_gps_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
+#ifdef DEBUG
+	fprintf(stderr, "trying to get latitude\n");
+#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x02" : (char *)"\x02\x00", 2, TYPE_RATIONAL, endian);
 	if (p && datum.type == TYPE_RATIONAL && datum.len == 3)
 	{
@@ -462,6 +532,9 @@ get_gps_data(file_t *file, int endian)
 		uptr = NULL;
 	}
 
+#ifdef DEBUG
+	fprintf(stderr, "trying to get longitude\n");
+#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x04" : (char *)"\x04\x00", 2, TYPE_RATIONAL, endian);
 	if (p && datum.type == TYPE_RATIONAL && datum.len == 3)
 	{
@@ -490,8 +563,12 @@ get_gps_data(file_t *file, int endian)
 		uptr = NULL;
 	}
 
+#ifdef DEBUG
+	fprintf(stderr, "trying to get satellites\n");
+#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x05" : (char *)"\x05\x00", 2, TYPE_ASCII, endian);
-	if (p && datum.type == TYPE_ASCII && (isalpha((char *)datum.data_start) || isdigit((char *)datum.data_start)))
+
+	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
 		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Satellites:",
@@ -542,52 +619,147 @@ get_make_model(file_t *file, int endian)
 	count = 0;
 
 	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x0f" : (char *)"\x0f\x01", 2, TYPE_ASCII, endian);
-	if (p)
-	  {
-			++count;
-			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Manufacturer:",
-							FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-							DATA_COL,
-							(char *)datum.data_start, _EOL);
-			if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
-				wipe_data(file, &datum);
-	  }
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Manufacturer:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
+			wipe_data(file, &datum);
+	}
 
 	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x10" : (char *)"\x10\x01", 2, TYPE_ASCII, endian);
-	if (p)
-	  {
-			++count;
-			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Model:",
-							FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-							DATA_COL,
-							(char *)datum.data_start, _EOL);
-			if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
-				wipe_data(file, &datum);
-	  }
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Model:",
+					FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+					DATA_COL,
+					(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
+			wipe_data(file, &datum);
+	}
+
+	p = get_data_offset(file, &datum, endian ? (char *)"\xc6\x14" : (char *)"\x14\xc6", 2, TYPE_ASCII, endian);
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Unique Camera Model:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
+			wipe_data(file, &datum);
+	}
+
+	p = get_data_offset(file, &datum, endian ? (char *)"\xc6\x2f" : (char *)"\x2f\xc6", 2, TYPE_ASCII, endian);
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Camera Serial:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
+			wipe_data(file, &datum);
+	}
+
+	p = get_data_offset(file, &datum, endian ? (char *)"\xc7\xa1" : (char *)"\xa1\xc7", 2, TYPE_ASCII, endian);
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Camera Label:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
+			wipe_data(file, &datum);
+	}
+
+	p = get_data_offset(file, &datum, endian ? (char *)"\xa4\x31" : (char *)"\x31\xa4", 2, TYPE_ASCII, endian);
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Body Serial:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
+			wipe_data(file, &datum);
+	}
 
 	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x31" : (char *)"\x31\x01", 2, TYPE_ASCII, endian);
 	if (p)
-	  {
-			++count;
-			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Software:",
-							FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-							DATA_COL,
-							(char *)datum.data_start, _EOL);
-			if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
-				wipe_data(file, &datum);
-	  }
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Software:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
+			wipe_data(file, &datum);
+	}
+
+	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x0b" : (char *)"\x0b\x00", 2, TYPE_ASCII, endian);
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Processing Software:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
+			wipe_data(file, &datum);
+	}
+
+	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x3c" : (char *)"\x3c\x01", 2, TYPE_ASCII, endian);
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Host Computer:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
+			wipe_data(file, &datum);
+	}
+
+	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x4d" : (char *)"\x4d\x01", 2, TYPE_ASCII, endian);
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Ink Names:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
+			wipe_data(file, &datum);
+	}
 
 	p = get_data_offset(file, &datum, endian ? (char *)"\x92\x7c" : (char *)"\x7c\x92", 2, TYPE_ASCII, endian);
-	if (p)
-	  {
-			++count;
-			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Makernote:",
-							FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-							DATA_COL,
-							(char *)datum.data_start, _EOL);
-			if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
-				wipe_data(file, &datum);
-	  }
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Makernote:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
+			wipe_data(file, &datum);
+	}
 
 	restore_signal_handler();
 
@@ -606,7 +778,7 @@ get_miscellaneous_data(file_t *file, int endian)
 
 	/* Get image description */
 	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x0e" : (char *)"\x0e\x01", 2, TYPE_ASCII, endian);
-	if (p)
+	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
 		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Image Description:",
@@ -620,7 +792,7 @@ get_miscellaneous_data(file_t *file, int endian)
 
 	/* Get comments */
 	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x86" : (char *)"\x86\x90", 2, TYPE_COMMENT, endian);
-	if (p)
+	if (p && datum.type == TYPE_COMMENT)
 	  {
 			++count;
 			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Comment:",
@@ -672,15 +844,54 @@ get_miscellaneous_data(file_t *file, int endian)
 	/* Get unique image ID */
 	p = get_data_offset(file, &datum, endian ? (char *)"\xa4\x20" : (char *)"\x20\xa4", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
-	  {
-			++count;
-			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Unique ID:",
-							FLAGS & (WIPE_ALL | WIPE_UID) ? "\e[9;02m" : "",
-							DATA_COL,
-							(char *)datum.data_start, _EOL);
-			if (FLAGS & (WIPE_ALL | WIPE_UID))
-					wipe_data(file, &datum);
-	  }
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Unique ID:",
+					FLAGS & (WIPE_ALL | WIPE_UID) ? "\e[9;02m" : "",
+					DATA_COL,
+					(char *)datum.data_start, _EOL);
+		if (FLAGS & (WIPE_ALL | WIPE_UID))
+				wipe_data(file, &datum);
+	}
+
+	p = get_data_offset(file, &datum, endian ? (char *)"\x80\x0d" : (char *)"\x0d\x80", 2, TYPE_ASCII, endian);
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Image ID:",
+					FLAGS & (WIPE_ALL | WIPE_MISC) ? "\e[9;02m" : "",
+					DATA_COL,
+					(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_MISC))
+			wipe_data(file, &datum);
+	}
+
+	p = get_data_offset(file, &datum, endian ? (char *)"\x82\x98" : (char *)"\x98\x82", 2, TYPE_ASCII, endian);
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Copyright:",
+					FLAGS & (WIPE_ALL | WIPE_MISC) ? "\e[9;02m" : "",
+					DATA_COL,
+					(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_MISC))
+			wipe_data(file, &datum);
+	}
+
+	p = get_data_offset(file, &datum, endian ? (char *)"\xa4\x30" : (char *)"\x30\xa4", 2, TYPE_ASCII, endian);
+	if (p && datum.type == TYPE_ASCII)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Camera Owner:",
+				FLAGS & (WIPE_ALL | WIPE_MISC) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_MISC))
+			wipe_data(file, &datum);
+	}
 
 	restore_signal_handler();
 
@@ -694,11 +905,11 @@ get_limit(file_t *file)
 
 	p = (unsigned char *)exif_start(file);
 	while (strncmp((char *)"\xff\xd8", (char *)p, 2) != 0 && p < (unsigned char *)file->map_end)
-	  {
-			++p;
-	  }
-	if (p == (unsigned char *)file->map_end)
-		return (file->map + 0x800);
+		++p;
+
+	if (p == (unsigned char *)file->map_end
+		|| ((void *)p - file->map) > 0x800)
+		return (void *)((char *)file->map + 0x800);
 	else
 		return (void *)p;
 }
