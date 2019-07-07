@@ -19,15 +19,9 @@ int
 main(int argc, char *argv[])
 {
 	int							fd;
-	unsigned char		*p = NULL, *q = NULL;
-	unsigned char		*p1 = NULL, *p2 = NULL;
+	unsigned char		*p = NULL;
 	struct stat			statb;
 	void						*data = NULL;
-	void						*map_end = NULL;
-	size_t					new_len;
-	int							*int_ptr = NULL;
-	char						*char_ptr = NULL;
-	long						*long_ptr = NULL;
 	int							endianness;
 	int							cnt;
 
@@ -122,7 +116,7 @@ main(int argc, char *argv[])
 	  }
 
 	p = (unsigned char *)data;
-	while (strncmp("Exif", p, 4) != 0 && p < (unsigned char *)infile.map_end)
+	while (strncmp("Exif", (char *)p, 4) != 0 && p < (unsigned char *)infile.map_end)
 		++p;
 	if (p == (unsigned char *)infile.map_end)
 	{
@@ -149,7 +143,7 @@ main(int argc, char *argv[])
 	else
 		endianness = 0;
 
-	map_end = (void *)((unsigned char *)data + statb.st_size);
+
 
 	fprintf(stdout, "\e[38;5;8m  ----------------EXIF Data----------------\e[m%s%s", _EOL, _EOL);
 
@@ -179,12 +173,6 @@ main(int argc, char *argv[])
 		printf(" (None)%s", _EOL);
 
 	end:
-	if (data)
-		{ munmap(data, statb.st_size); data = NULL; }
-	exit(EXIT_SUCCESS);
-
-	no_exif:
-	fprintf(stdout, "Found no EXIF data\n");
 	if (data)
 		{ munmap(data, statb.st_size); data = NULL; }
 	exit(EXIT_SUCCESS);
