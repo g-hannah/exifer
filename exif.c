@@ -75,25 +75,39 @@ static void
 wipe_data(file_t *file, datum_t *datum)
 {
 	unsigned char		*p = NULL, *s = NULL, *e = NULL;
+	uint16_t				*u16 = NULL;
+	uint32_t				*u32 = NULL;
 	int							i;
 
 	p = s = (unsigned char *)datum->data_start;
 	e = (unsigned char *)datum->data_end;
-	assert(p < e);
+	//assert(p < e);
 
 	for (i = 0; i < 8; ++i)
-	  {
-			unsigned char			r;
+	{
+		unsigned char			r;
 
-			r = random_byte();
-			while (p != e)
-				*p++ = r;
-			p = s;
-	  }
+		r = random_byte();
+		while (p < e)
+			*p++ = r;
+		p = s;
+	}
 
 	p = s;
 	while (p < e)
 		*p++ = 0;
+
+	u16 = (uint16_t *)datum->tag_p;
+	*u16 &= ~(*u16);
+	u16 = (uint16_t *)datum->type_p;
+	*u16 &= ~(*u16);
+	u32 = (uint32_t *)datum->len_p;
+	*u32 &= ~(*u32);
+	u32 = (uint32_t *)datum->offset_p;
+	*u32 &= ~(*u32);
+
+	u32 = NULL;
+	u16 = NULL;
 
 	p = s = e = NULL;
 	return;
@@ -265,11 +279,26 @@ get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t ty
 			dptr->data_start = (void *)((unsigned char *)file->map + dptr->offset + EXIF_DATA_OFFSET);
 
 		unsigned char *p = (unsigned char *)dptr->data_start;
-		while (*p != 0)
-			++p;
-		dptr->data_end = (void *)p;
-		p = NULL;
 
+		switch(type)
+		{
+			case TYPE_BYTE:
+			case TYPE_ASCII:
+			case TYPE_COMMENT:
+			dptr->data_end = (void *)(p + dptr->len);
+			break;
+			case TYPE_SHORT:
+			dptr->data_end = (void *)(p + (dptr->len * 2));
+			break;
+			case TYPE_SRATIONAL:
+			case TYPE_RATIONAL:
+			dptr->data_end = (void *)(p + (dptr->len * (sizeof(unsigned int) * 2)));
+			break;
+			default:
+			dptr->data_end = (void *)(p + dptr->len);
+		}
+
+		p = NULL;
 		return (void *)dptr;
 	}
 }
