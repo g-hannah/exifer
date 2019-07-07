@@ -130,8 +130,17 @@ get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t ty
 	assert(file->new_end <= file->map_end);
 
 	p = (unsigned char *)exif_start(file);
+	t = (unsigned char *)str;
 
+#if 0
 	while ((strncmp(str, (char *)p, slen) != 0
+		|| (endian ? ntohs(*((uint16_t *)((char *)p + slen))) : *((uint16_t *)((char *)p + slen)) != type))
+		&& p < (unsigned char *)lim
+		&& p < (unsigned char *)file->new_end)
+		++p;
+#endif
+
+	while ((*p != *t || *(p+1) != *(t+1)
 		|| (endian ? ntohs(*((uint16_t *)((char *)p + slen))) : *((uint16_t *)((char *)p + slen)) != type))
 		&& p < (unsigned char *)lim
 		&& p < (unsigned char *)file->new_end)
@@ -218,12 +227,29 @@ get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t ty
 	  }
 	else
 	  {
-			dptr->data_start = (void *)((unsigned char *)file->map + dptr->offset + EXIF_DATA_OFFSET);
+			if ((dptr->type == TYPE_ASCII || dptr->type == TYPE_BYTE) && dptr->len <= 4)
+				dptr->data_start = dptr->offset_p;
+			else
+				dptr->data_start = (void *)((unsigned char *)file->map + dptr->offset + EXIF_DATA_OFFSET);
+
 			unsigned char *p = (unsigned char *)dptr->data_start;
 			while (*p != 0)
 				++p;
 			dptr->data_end = (void *)p;
 			p = NULL;
+
+#ifdef DEBUG
+			fprintf(stderr,
+				"length %u\n"
+				"  type %hu\n"
+				"   tag %hu\n"
+				"offset %u\n",
+				dptr->len,
+				dptr->type,
+				*((uint16_t *)dptr->tag_p),
+				*((uint32_t *)dptr->offset_p));
+#endif
+
 			return (void *)dptr;
 	  }
 }
@@ -310,14 +336,78 @@ get_gps_data(file_t *file, int endian)
 	setup_signal_handler();
 	memset(&datum, 0, sizeof(datum));
 	count = 0;
+
+	p = get_data_offset(file, &datum, (char *)"\x00\x00", 2, TYPE_BYTE, endian);
+	if (p)
+	{
+		++count;
+
+		char		*ptr = NULL;
+		char		*tptr = NULL;
+
+		ptr = (char *)datum.data_start;
+		tptr = tmp_buf;
+		while (ptr < (char *)((char *)datum.data_start + (size_t)datum.len))
+		{
+			*tptr++ = (*ptr + 0x30);
+			*tptr++ = 0x2e;
+		}
+
+		--tptr;
+		*tptr = 0;
+		
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Version ID:",
+					FLAGS & (WIPE_ALL | WIPE_GPS) ? "\e[9;02m" : "",
+					DATA_COL,
+					tmp_buf, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_GPS))
+			wipe_data(file, &datum);
+	}
+
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x1d" : (char *)"\x1d\x00", 2, TYPE_ASCII, endian);
 	if (p)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Timestamp:",
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Datestamp:",
 				FLAGS & (WIPE_ALL | WIPE_GPS) ? "\e[9;02m" : "",
 				DATA_COL,
 				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_GPS))
+			wipe_data(file, &datum);
+	}
+
+	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x07" : (char *)"\x07\x00", 2, TYPE_RATIONAL, endian);
+	if (p)
+	{
+		unsigned int		*uptr = NULL;
+		double					hours, minutes, seconds;
+
+		uptr = (unsigned int *)datum.data_start;
+
+		numerator = *uptr++;
+		denominator = *uptr++;
+
+		hours = ((double)numerator / (double)denominator);
+
+		numerator = *uptr++;
+		denominator = *uptr++;
+
+		minutes = ((double)numerator / (double)denominator);
+
+		numerator = *uptr++;
+		denominator = *uptr++;
+
+		seconds = ((double)numerator / (double)denominator);
+
+		printf("%*s %s%s%02u:%02u:%02u\e[m%s", OUT_WIDTH, "Timestamp:",
+				FLAGS & (WIPE_ALL | WIPE_GPS) ? "\e[9;02m" : "",
+				DATA_COL,
+				(unsigned int)hours,
+				(unsigned int)minutes,
+				(unsigned int)seconds,
+				_EOL);
 
 		if (FLAGS & (WIPE_ALL | WIPE_GPS))
 			wipe_data(file, &datum);
@@ -327,15 +417,9 @@ get_gps_data(file_t *file, int endian)
 	if (p)
 	{
 		char		*q = NULL;
-		unsigned int *len;
 
 		++count;
-
-		len = (unsigned int *)datum.len_p;
-		if (*len <= 2)
-			q = ((char *)datum.offset_p);
-		else
-			q = ((char *)datum.data_start);
+		q = (char *)datum.data_start;
 
 		if (*q == 0x4e)
 			strcpy(latitude_ref, "N");
@@ -351,14 +435,9 @@ get_gps_data(file_t *file, int endian)
 	if (p)
 	{
 		char		*q = NULL;
-		unsigned int *len;
 
 		++count;
-		len = (unsigned int *)datum.len_p;
-		if (*len <= 2)
-			q = ((char *)datum.offset_p);
-		else
-			q = ((char *)datum.data_start);
+		q = (char *)datum.data_start;
 
 		if (*q == 0x45)
 			strcpy(longitude_ref, "E");
@@ -424,6 +503,19 @@ get_gps_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 
 		uptr = NULL;
+	}
+
+	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x05" : (char *)"\x05\x00", 2, TYPE_ASCII, endian);
+	if (p)
+	{
+		++count;
+		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Satellites:",
+				FLAGS & (WIPE_ALL | WIPE_GPS) ? "\e[9;02m" : "",
+				DATA_COL,
+				(char *)datum.data_start, _EOL);
+
+		if (FLAGS & (WIPE_ALL | WIPE_GPS))
+			wipe_data(file, &datum);
 	}
 
 	if (count)
@@ -555,7 +647,7 @@ get_miscellaneous_data(file_t *file, int endian)
 	}
 
 	/* Get comments */
-	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x86" : (char *)"\x86\x90", 2, TYPE_ASCII, endian);
+	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x86" : (char *)"\x86\x90", 2, TYPE_COMMENT, endian);
 	if (p)
 	  {
 			++count;
@@ -568,14 +660,29 @@ get_miscellaneous_data(file_t *file, int endian)
 	  }
 
 	memset(&datum, 0, sizeof(datum));
-	p = get_data_offset(file, &datum, endian ? (char *)"\x92\x86" : (char *)"\x92\x86", 2, TYPE_ASCII, endian);
+	p = get_data_offset(file, &datum, endian ? (char *)"\x92\x86" : (char *)"\x86\x92", 2, TYPE_COMMENT, endian);
 	if (p)
 	{
+		char			*q = NULL;
+
+		q = (char *)datum.data_start;
+	
+		if (!isalpha(*q) && !isdigit(*q))
+		{
+			while (!isalpha(*q)
+				&& !isdigit(*q)
+				&& q < (char *)((char *)datum.data_start + (size_t)datum.len))
+				++q;
+
+			if (!isalpha(*q) && !isdigit(*q))
+				q = (char *)datum.data_start;
+		}
+
 		++count;
 		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Comment:",
 						FLAGS & (WIPE_ALL | WIPE_COMMENT) ? "\e[9;02m" : "",
 						DATA_COL,
-						(char *)datum.data_start, _EOL);
+						q, _EOL);
 		if (FLAGS & (WIPE_ALL | WIPE_COMMENT))
 			wipe_data(file, &datum);
 	}

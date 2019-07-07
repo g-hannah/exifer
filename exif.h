@@ -9,18 +9,12 @@
 
 #define BUILD			"0.2.8"
 
-/*
- * TODO: Reliably determine the end of
- * the EXIF data so that we do not
- * match random binary data within the
- * image whilst trying to find EXIF
- * tags ...
- */
 #define APP1_MARKER		"\xff\xe1"
 #define END_MARKER		"\xff\xd8"
 #define SECTION_COL		"\e[38;5;31m"
 #define INFO_COL			"  \e[3;01m\e[38;5;125m"
 
+#define TYPE_BYTE				0x0001
 #define TYPE_ASCII			0x0002
 #define TYPE_SHORT			0x0003
 #define TYPE_RATIONAL		0x0005
@@ -28,7 +22,6 @@
 #define TYPE_SRATIONAL	0x000a
 
 #define OUT_WIDTH				19
-
 #define MAX_PATH_LEN		1024
 
 typedef struct datum_t
