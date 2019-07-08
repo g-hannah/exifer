@@ -1,5 +1,5 @@
 DEBUG:=0
-BUILD:=0.2.12
+BUILD:=0.2.13
 CC=gcc
 WFLAGS=-Wall -Werror
 CFILES=main.c exif.c file.c logging.c
