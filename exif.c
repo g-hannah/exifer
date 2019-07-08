@@ -116,22 +116,15 @@ wipe_data(file_t *file, datum_t *datum)
 static void *
 exif_start(file_t *file)
 {
-	unsigned char						*p = NULL;
+	unsigned char *p = NULL;
 
 	assert(file);
 	assert(file->map);
 	p = (unsigned char *)file->map;
-	while (strncmp((char *)"\xff\xe1", (char *)p, 2) != 0 && p < (unsigned char *)file->map_end)
+	while (strncmp((char *)APP1_MARKER, (char *)p, 2) != 0 && p < (unsigned char *)file->map_end)
 		++p;
-	if (p == (unsigned char *)file->map_end)
-	  {
-			p = file->map;
-			while (strncasecmp((char *)"Exif", (char *)p, 4) != 0 && p < (unsigned char *)file->map_end)
-				++p;
-			return (void *)p;
-	  }
-	else
-		return (void *)p;
+
+	return (void *)p;
 }
 
 static void *
@@ -930,15 +923,11 @@ get_miscellaneous_data(file_t *file, int endian)
 void *
 get_limit(file_t *file)
 {
-	unsigned char			*p = NULL;
+	unsigned char		*p = NULL;
+	unsigned short *exif_len = NULL;
 
 	p = (unsigned char *)exif_start(file);
-	while (strncmp((char *)"\xff\xd8", (char *)p, 2) != 0 && p < (unsigned char *)file->map_end)
-		++p;
-
-	if (p == (unsigned char *)file->map_end
-		|| ((void *)p - file->map) > 0x800)
-		return (void *)((char *)file->map + 0x800);
-	else
-		return (void *)p;
+	exif_len = (unsigned short *)(p + 2);
+	*exif_len = ntohs(*exif_len);
+	return (void *)(p + (size_t)(*exif_len));
 }
