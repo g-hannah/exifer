@@ -924,10 +924,15 @@ void *
 get_limit(file_t *file)
 {
 	unsigned char		*p = NULL;
-	unsigned short *exif_len = NULL;
+	uint16_t *exif_lenp = NULL;
+	uint16_t exif_len;
 
+	exif_len = 0;
 	p = (unsigned char *)exif_start(file);
-	exif_len = (unsigned short *)(p + 2);
-	*exif_len = ntohs(*exif_len);
-	return (void *)(p + (size_t)(*exif_len));
+	exif_lenp = (uint16_t *)(p + 2);
+	exif_len = ntohs(*exif_lenp);
+	if (exif_len > 0x2000)
+		exif_len = 0x2000;
+	
+	return (void *)(p + (size_t)(exif_len));
 }
