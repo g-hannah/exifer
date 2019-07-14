@@ -94,14 +94,14 @@ main(int argc, char *argv[])
 			FLAGS & WIPE_COMMENT ? "Wipe Comment " : "",
 			_EOL, _EOL);
 
-	fd = open(argv[1], O_RDWR);
+	fd = open(argv[1], O_RDONLY);
 
 	assert(strlen(argv[1]) < MAX_PATH_LEN);
 	strncpy(infile.fullpath, argv[1], strlen(argv[1]));
 	infile.fullpath[strlen(argv[1])] = 0;
 	infile.fd = fd;
 	
-	if ((data = mmap(NULL, statb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED)
+	if ((data = mmap(NULL, statb.st_size, PROT_READ, MAP_SHARED, fd, 0)) == MAP_FAILED)
 		goto fail;
 
 	infile.map = data;
