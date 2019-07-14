@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include "exif.h"
 #include "logging.h"
@@ -83,6 +84,11 @@ wipe_data(file_t *file, datum_t *datum)
 	e = (unsigned char *)datum->data_end;
 	//assert(p < e);
 
+	if (mprotect(file->map, file->size, PROT_READ|PROT_WRITE) < 0)
+	{
+		perror("wipe_data: failed to set file map to PROT_READ|PROT_WRITE\n");
+	}
+
 	for (i = 0; i < 8; ++i)
 	{
 		unsigned char			r;
@@ -110,6 +116,8 @@ wipe_data(file_t *file, datum_t *datum)
 	u16 = NULL;
 
 	p = s = e = NULL;
+
+	mprotect(file->map, file->size, PROT_READ);
 	return;
 }
 
@@ -196,66 +204,56 @@ get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t ty
 
 	if (endian)
 	{
-		uint32_t 	*offset = NULL;
-		uint32_t	*len = NULL;
-		uint16_t	*type = NULL;
+		uint32_t 	offset;
+		uint32_t	len;
+		uint16_t	type;
 		uint8_t		*t = NULL;
 
-		offset = (uint32_t *)dptr->offset_p;
-		t = (unsigned char *)offset;
+		offset = *((uint32_t *)dptr->offset_p);
+		t = (unsigned char *)&offset;
 		if (*t == 0)
-			*offset = htonl(*offset);
-		dptr->offset = *offset;
+			offset = htonl(offset);
+		dptr->offset = offset;
 
-		len = (uint32_t *)dptr->len_p;
-		*len = ntohl(*len);
-		t = (unsigned char *)len;
+		len = *((uint32_t *)dptr->len_p);
+		len = ntohl(len);
+		t = (unsigned char *)&len;
 		if (*t == 0)
-			*len = htonl(*len);
-		dptr->len = *len;
+			len = htonl(len);
+		dptr->len = len;
 
-		type = (uint16_t *)dptr->type_p;
-		*type = ntohs(*type);
-		t = (unsigned char *)type;
+		type = *((uint16_t *)dptr->type_p);
+		type = ntohs(type);
+		t = (unsigned char *)&type;
 		if (*t == 0)
-			*type = ntohs(*type);
-		dptr->type = *type;
-
-		offset = NULL;
-		len = NULL;
-		type = NULL;
+			type = ntohs(type);
+		dptr->type = type;
 		t = NULL;
 	}
 	else
 	{
-		uint32_t 	*offset = NULL;
-		uint32_t	*len = NULL;
-		uint16_t	*type = NULL;
+		uint32_t 	offset;
+		uint32_t	len;
+		uint16_t	type;
 		uint8_t		*t = NULL;
 
-		offset = (uint32_t *)dptr->offset_p;
-		t = (unsigned char *)offset;
+		offset = *((uint32_t *)dptr->offset_p);
+		t = (unsigned char *)&offset;
 		if (*t == 0)
-		{
-			*offset = ntohl(*offset);
-		}
-		dptr->offset = *offset;
+			offset = ntohl(offset);
+		dptr->offset = offset;
 
-		len = (uint32_t *)dptr->len_p;
-		t = (unsigned char *)len;
+		len = *((uint32_t *)dptr->len_p);
+		t = (unsigned char *)&len;
 		if (*t == 0)
-			*len = ntohl(*len);
-		dptr->len = *len;
+			len = ntohl(len);
+		dptr->len = len;
 
-		type = (uint16_t *)dptr->type_p;
-		t = (unsigned char *)type;
+		type = *((uint16_t *)dptr->type_p);
+		t = (unsigned char *)&type;
 		if (*t == 0)
-			*type = ntohs(*type);
-		dptr->type = *type;
-
-		offset = NULL;
-		len = NULL;
-		type = NULL;
+			type = ntohs(type);
+		dptr->type = type;
 		t = NULL;
 	}
 
@@ -403,12 +401,14 @@ get_gps_data(file_t *file, int endian)
 
 		char		*ptr = NULL;
 		char		*tptr = NULL;
+		unsigned char c;
 
 		ptr = (char *)datum.data_start;
 		tptr = tmp_buf;
 		while (ptr < (char *)((char *)datum.data_start + (size_t)datum.len))
 		{
-			*tptr++ = (*ptr + 0x30);
+			c = *ptr++;
+			*tptr++ = (c + 0x30);
 			*tptr++ = 0x2e;
 		}
 
