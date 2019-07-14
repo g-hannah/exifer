@@ -115,6 +115,10 @@ main(int argc, char *argv[])
 		goto fail;
 	}
 
+#ifdef DEBUG
+	printf("Size of exif data: %lu bytes\n", (lim - infile.map));
+#endif
+
 	p = (unsigned char *)data;
 	while (strncmp("Exif", (char *)p, 4) != 0 && p < (unsigned char *)infile.map_end)
 		++p;
