@@ -94,7 +94,7 @@ main(int argc, char *argv[])
 			FLAGS & WIPE_COMMENT ? "Wipe Comment " : "",
 			_EOL, _EOL);
 
-	fd = open(argv[1], O_RDONLY);
+	fd = open(argv[1], O_RDWR);
 
 	assert(strlen(argv[1]) < MAX_PATH_LEN);
 	strncpy(infile.fullpath, argv[1], strlen(argv[1]));
