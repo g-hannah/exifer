@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <assert.h>
 #include <ctype.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <setjmp.h>
 #include <signal.h>
@@ -9,11 +10,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include "exif.h"
 #include "logging.h"
 
 #define DATA_COL			"\e[38;5;88m"
+
+#define clear_struct(s) memset((s), 0, sizeof(*(s)))
+
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
 
 static struct sigaction new_act, old_act;
 static sigjmp_buf				__sigsegv__;
@@ -30,8 +37,8 @@ sigsegv_handler(int signo)
 static int
 set_signal_handler(void)
 {
-	memset(&new_act, 0, sizeof(new_act));
-	memset(&old_act, 0, sizeof(old_act));
+	clear_struct(&new_act);
+	clear_struct(&old_act);
 	sigemptyset(&new_act.sa_mask);
 	new_act.sa_handler = sigsegv_handler;
 	new_act.sa_flags = 0;
@@ -49,7 +56,6 @@ set_signal_handler(void)
 		exit(EXIT_FAILURE);																	\
 	}																											\
 } while (0)
-		
 
 static void
 restore_signal_handler(void)
@@ -60,29 +66,71 @@ restore_signal_handler(void)
 	return;
 }
 
-static unsigned char
-random_byte(void)
+int
+random_byte(unsigned char *c)
 {
 	int						fd;
-	unsigned char	c;
+	struct stat statb;
+	ssize_t bytes = 0;
+	int rv;
 
-	fd = open("/dev/urandom", O_RDONLY);
-	read(fd, &c, 1);
+	clear_struct(&statb);
+
+	if ((rv = lstat("/dev/urandom", &statb)) < 0)
+	{
+		perror("random_byte: lstat error\n");
+		return -1;
+	}
+
+	if (unlikely(!S_ISCHR(statb.st_mode)))
+	{
+		perror("random_byte: /dev/urandom is not a special character file...\n");
+		return -1;
+	}
+
+	if ((fd = open("/dev/urandom", O_RDONLY)) < 0)
+	{
+		perror("random_byte: failed to open /dev/urandom\n");
+		return -1;
+	}
+
+	errno = EINTR;
+
+	do
+	{
+		bytes = read(fd, c, 1);
+
+		if (bytes < 0)
+		{
+			if (errno != EINTR)
+			{
+				perror("random_byte: failed to read a random byte from /dev/urandom\n");
+				return -1;
+			}
+		}
+		else
+			break;
+
+	} while (errno == EINTR);
+
 	close(fd);
-	return c;
+
+	return 0;
 }
 
 static void
 wipe_data(file_t *file, datum_t *datum)
 {
-	unsigned char		*p = NULL, *s = NULL, *e = NULL;
+	unsigned char		*p = NULL;
+	unsigned char		*s = NULL;
+	unsigned char		*e = NULL;
 	uint16_t				*u16 = NULL;
 	uint32_t				*u32 = NULL;
 	int							i;
+	int							rv;
 
 	p = s = (unsigned char *)datum->data_start;
 	e = (unsigned char *)datum->data_end;
-	//assert(p < e);
 
 	if (mprotect(file->map, file->size, PROT_READ|PROT_WRITE) < 0)
 	{
@@ -91,11 +139,19 @@ wipe_data(file_t *file, datum_t *datum)
 
 	for (i = 0; i < 8; ++i)
 	{
-		unsigned char			r;
+		unsigned char rc = 0;
 
-		r = random_byte();
+		if ((rv = random_byte(&rc)) < 0)
+		{
+			fprintf(stderr, "Unable to %s overwrit%s exif data with pseudo-random data%s\n",
+				!i ? "" : "finish",
+				!i ? "e" : "ing",
+				!i ? "-- just zeroing out" : "-- zeroing out");
+			break;
+		}
+
 		while (p < e)
-			*p++ = r;
+			*p++ = rc;
 		p = s;
 	}
 
@@ -138,7 +194,8 @@ exif_start(file_t *file)
 static void *
 get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t type, int endian)
 {
-	unsigned char		*p = NULL, *t = NULL;
+	unsigned char *p = NULL;
+	unsigned char *t = NULL;
 
 	assert(file);
 	assert(dptr);
@@ -149,52 +206,12 @@ get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t ty
 	p = (unsigned char *)exif_start(file);
 	t = (unsigned char *)str;
 
-	memset(dptr, 0, sizeof(*dptr));
+	clear_struct(dptr);
 
-	while ((*p != *t || *(p+1) != *(t+1)
-		|| (endian ? ntohs(*((uint16_t *)((char *)p + slen))) : *((uint16_t *)((char *)p + slen)) != type))
-		&& p < (unsigned char *)lim
-		&& p < (unsigned char *)file->new_end)
+	while (memcmp(t, p, 2) && p < (unsigned char *)lim)
 		++p;
 
-#if 0
-	/* Some files have big endian tags but little endian data, and vice versa ... */
-	mixed = 0;
-	while (1)
-	{
-		while ((*p != *t || *(p+1) != *(t+1))
-			&& p < (unsigned char *)lim
-			&& p < (unsigned char *)file->new_end)
-			++p;
-
-		if (p == (unsigned char *)lim || p == (unsigned char *)file->new_end)
-			return NULL;
-
-		__type = (uint16_t *)((char *)p + slen);
-		if (*__type == type)
-		{
-			if (endian)
-				mixed = 1;
-
-			break;
-		}
-		else
-		if (ntohs(*__type) == type)
-		{
-			if (!endian)
-				mixed = 1;
-
-			break;
-		}
-		else
-		{
-			++p;
-			continue;
-		}
-	}
-#endif
-
-	if ((void *)p == lim || (void *)p == file->new_end)
+	if (p == (unsigned char *)lim)
 		return NULL;
 
 	dptr->tag_p = (void *)p;
@@ -259,7 +276,7 @@ get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t ty
 
 	if (dptr->offset >= (lim - file->map) || dptr->offset >= (file->map_end - file->map))
 	{
-		memset(dptr, 0, sizeof(*dptr));
+		clear_struct(dptr);
 		return NULL;
 	}
 	else
@@ -641,6 +658,7 @@ get_make_model(file_t *file, int endian)
 	count = 0;
 
 	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x0f" : (char *)"\x0f\x01", 2, TYPE_ASCII, endian);
+
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -825,7 +843,7 @@ get_miscellaneous_data(file_t *file, int endian)
 				wipe_data(file, &datum);
 	  }
 
-	memset(&datum, 0, sizeof(datum));
+	clear_struct(&datum);
 	p = get_data_offset(file, &datum, endian ? (char *)"\x92\x86" : (char *)"\x86\x92", 2, TYPE_COMMENT, endian);
 	if (p && datum.type == TYPE_COMMENT)
 	{
