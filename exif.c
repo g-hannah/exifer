@@ -15,7 +15,9 @@
 #include "exif.h"
 #include "logging.h"
 
-#define DATA_COL			"\e[38;5;88m"
+#define DATA_COL				"\x1b[38;5;88m"
+#define STRIKE_THROUGH	"\x1b[9;02m"
+#define END_COL					"\x1b[m"
 
 static struct sigaction new_act, old_act;
 static sigjmp_buf				__sigsegv__;
@@ -203,11 +205,27 @@ get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t ty
 
 	clear_struct(dptr);
 
-	while (memcmp(t, p, 2) && p < (unsigned char *)lim)
-		++p;
+	for(;;)
+	{
+		while (memcmp(t, p, 2) && p < (unsigned char *)lim)
+			++p;
 
-	if (p == (unsigned char *)lim)
-		return NULL;
+		if (p == (unsigned char *)lim)
+			return NULL;
+
+		uint16_t _type = *((uint16_t *)(p + 2));
+
+		if (endian)
+			_type = ntohs(_type);
+
+		if (_type != type)
+		{
+			p += 2;
+			continue;
+		}
+		else
+			break;
+	}
 
 	dptr->tag_p = (void *)p;
 	dptr->type_p = (void *)((unsigned char *)p + 2);
@@ -320,10 +338,10 @@ get_date_time(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Digitised:",
-					FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
-					DATA_COL,
-					(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Digitised:",
+					FLAGS & (WIPE_ALL | WIPE_DATE) ? STRIKE_THROUGH : "",
+					(char *)datum.data_start, _EOL,
+					FLAGS & (WIPE_ALL | WIPE_DATE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DATE))
 			wipe_data(file, &datum);
@@ -333,10 +351,10 @@ get_date_time(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Original:",
-				FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Original:",
+				FLAGS & (WIPE_ALL | WIPE_DATE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DATE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DATE))
 			wipe_data(file, &datum);
@@ -346,10 +364,10 @@ get_date_time(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Created:",
-					FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
-					DATA_COL,
-					(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Created:",
+				FLAGS & (WIPE_ALL | WIPE_DATE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DATE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DATE))
 				wipe_data(file, &datum);
@@ -359,10 +377,10 @@ get_date_time(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Modified:",
-					FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
-					DATA_COL,
-					(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Modified:",
+				FLAGS & (WIPE_ALL | WIPE_DATE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DATE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DATE))
 			wipe_data(file, &datum);
@@ -372,10 +390,10 @@ get_date_time(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Preview:",
-				FLAGS & (WIPE_ALL | WIPE_DATE) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Preview:",
+				FLAGS & (WIPE_ALL | WIPE_DATE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DATE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DATE))
 			wipe_data(file, &datum); 
@@ -403,9 +421,6 @@ get_gps_data(file_t *file, int endian)
 	setup_signal_handler();
 	count = 0;
 
-#ifdef DEBUG
-		fprintf(stderr, "Trying to get version...\n");
-#endif
 	p = get_data_offset(file, &datum, (char *)"\x00\x00", 2, TYPE_BYTE, endian);
 	if (p && datum.type == TYPE_BYTE && datum.len == 4)
 	{
@@ -427,35 +442,29 @@ get_gps_data(file_t *file, int endian)
 		--tptr;
 		*tptr = 0;
 		
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Version ID:",
-					FLAGS & (WIPE_ALL | WIPE_GPS) ? "\e[9;02m" : "",
-					DATA_COL,
-					tmp_buf, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Version ID:",
+				FLAGS & (WIPE_ALL | WIPE_GPS) ? STRIKE_THROUGH : "",
+				tmp_buf, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_GPS) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_GPS))
 			wipe_data(file, &datum);
 	}
 
-#ifdef DEBUG
-	fprintf(stderr, "Trying to get datestamp\n");
-#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x1d" : (char *)"\x1d\x00", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		assert(datum.data_start);
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Datestamp:",
-				FLAGS & (WIPE_ALL | WIPE_GPS) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Datestamp:",
+				FLAGS & (WIPE_ALL | WIPE_GPS) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_GPS) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_GPS))
 			wipe_data(file, &datum);
 	}
 
-#ifdef DEBUG
-	fprintf(stderr, "Trying to get timestamp\n");
-#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x07" : (char *)"\x07\x00", 2, TYPE_RATIONAL, endian);
 	if (p && datum.type == TYPE_RATIONAL && datum.len == 3)
 	{
@@ -480,21 +489,18 @@ get_gps_data(file_t *file, int endian)
 
 		seconds = ((double)numerator / (double)denominator);
 
-		printf("%*s %s%s%02u:%02u:%02u\e[m%s", OUT_WIDTH, "Timestamp:",
-				FLAGS & (WIPE_ALL | WIPE_GPS) ? "\e[9;02m" : "",
-				DATA_COL,
+		printf("%*s %s%02u:%02u:%02u%s%s", OUT_WIDTH, "Timestamp:",
+				FLAGS & (WIPE_ALL | WIPE_GPS) ? STRIKE_THROUGH : "",
 				(unsigned int)hours,
 				(unsigned int)minutes,
 				(unsigned int)seconds,
-				_EOL);
+				_EOL,
+				FLAGS & (WIPE_ALL | WIPE_GPS) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_GPS))
 			wipe_data(file, &datum);
 	}
 
-#ifdef DEBUG
-	fprintf(stderr, "Trying to get latitude ref\n");
-#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x01" : (char *)"\x01\x00", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII && datum.len == 2)
 	{
@@ -514,9 +520,6 @@ get_gps_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-#ifdef DEBUG
-	fprintf(stderr, "Trying to get longitude ref\n");
-#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x03" : (char *)"\x03\x00", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII && datum.len == 2)
 	{
@@ -535,9 +538,6 @@ get_gps_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-#ifdef DEBUG
-	fprintf(stderr, "trying to get latitude\n");
-#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x02" : (char *)"\x02\x00", 2, TYPE_RATIONAL, endian);
 	if (p && datum.type == TYPE_RATIONAL && datum.len == 3)
 	{
@@ -566,9 +566,6 @@ get_gps_data(file_t *file, int endian)
 		uptr = NULL;
 	}
 
-#ifdef DEBUG
-	fprintf(stderr, "trying to get longitude\n");
-#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x04" : (char *)"\x04\x00", 2, TYPE_RATIONAL, endian);
 	if (p && datum.type == TYPE_RATIONAL && datum.len == 3)
 	{
@@ -597,18 +594,15 @@ get_gps_data(file_t *file, int endian)
 		uptr = NULL;
 	}
 
-#ifdef DEBUG
-	fprintf(stderr, "trying to get satellites\n");
-#endif
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x05" : (char *)"\x05\x00", 2, TYPE_ASCII, endian);
 
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Satellites:",
-				FLAGS & (WIPE_ALL | WIPE_GPS) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Satellites:",
+				FLAGS & (WIPE_ALL | WIPE_GPS) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_GPS) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_GPS))
 			wipe_data(file, &datum);
@@ -617,24 +611,24 @@ get_gps_data(file_t *file, int endian)
 	if (count)
 	{
 		memset(tmp_buf, 0, 256);
-		snprintf(tmp_buf, 256, "%s%08.4lf° %08.4lf' %08.4lf'' %s\e[m",
-				DATA_COL,
+		snprintf(tmp_buf, 256, "%08.4lf° %08.4lf' %08.4lf'' %s%s",
 				latitude_deg, latitude_min, latitude_sec,
-				latitude_ref);
+				latitude_ref,
+				FLAGS & (WIPE_ALL | WIPE_DATE) ? END_COL : "");
 
 		printf("%*s %s%s%s",
 				OUT_WIDTH, "Latitude:",
-				(FLAGS & (WIPE_ALL | WIPE_GPS)) ? "\e[9;02m" : "", tmp_buf, _EOL);
+				(FLAGS & (WIPE_ALL | WIPE_GPS)) ? STRIKE_THROUGH : "", tmp_buf, _EOL);
 
 		memset(tmp_buf, 0, 256);
-		snprintf(tmp_buf, 256, "%s%08.4lf° %08.4lf' %08.4lf'' %s\e[m",
-				DATA_COL,
+		snprintf(tmp_buf, 256, "%08.4lf° %08.4lf' %08.4lf'' %s%s",
 				longitude_deg, longitude_min, longitude_sec,
-				longitude_ref);
+				longitude_ref,
+				FLAGS & (WIPE_ALL | WIPE_DATE) ? END_COL : "");
 
 		printf("%*s %s%s%s",
 				OUT_WIDTH, "Longitude:",
-				(FLAGS & (WIPE_ALL | WIPE_GPS)) ? "\e[9;02m" : "", tmp_buf, _EOL);
+				(FLAGS & (WIPE_ALL | WIPE_GPS)) ? STRIKE_THROUGH : "", tmp_buf, _EOL);
 	}
 
 	restore_signal_handler();
@@ -657,10 +651,10 @@ get_make_model(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Manufacturer:",
-				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Manufacturer:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 			wipe_data(file, &datum);
@@ -670,10 +664,10 @@ get_make_model(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Model:",
-					FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-					DATA_COL,
-					(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Model:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 			wipe_data(file, &datum);
@@ -683,10 +677,10 @@ get_make_model(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Unique Camera Model:",
-				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Unique Camera Model:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 			wipe_data(file, &datum);
@@ -696,10 +690,10 @@ get_make_model(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Camera Serial:",
-				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Camera Serial:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 			wipe_data(file, &datum);
@@ -709,10 +703,10 @@ get_make_model(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Camera Label:",
-				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Camera Label:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 			wipe_data(file, &datum);
@@ -722,10 +716,10 @@ get_make_model(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Body Serial:",
-				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Body Serial:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 			wipe_data(file, &datum);
@@ -735,10 +729,10 @@ get_make_model(file_t *file, int endian)
 	if (p)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Software:",
-				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Software:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 			wipe_data(file, &datum);
@@ -748,10 +742,10 @@ get_make_model(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Processing Software:",
-				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Processing Software:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 			wipe_data(file, &datum);
@@ -761,10 +755,10 @@ get_make_model(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Host Computer:",
-				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Host Computer:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 			wipe_data(file, &datum);
@@ -774,10 +768,10 @@ get_make_model(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Ink Names:",
-				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Ink Names:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 			wipe_data(file, &datum);
@@ -787,10 +781,10 @@ get_make_model(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Makernote:",
-				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Makernote:",
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_DEVICE) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_DEVICE))
 			wipe_data(file, &datum);
@@ -816,10 +810,10 @@ get_miscellaneous_data(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Image Description:",
-					FLAGS & (WIPE_ALL | WIPE_MISC) ? "\e[9;02m" : "",
-					DATA_COL,
-					(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Image Description:",
+				FLAGS & (WIPE_ALL | WIPE_MISC) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_MISC) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_MISC))
 			wipe_data(file, &datum);
@@ -830,10 +824,11 @@ get_miscellaneous_data(file_t *file, int endian)
 	if (p && datum.type == TYPE_COMMENT)
 	  {
 			++count;
-			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Comment:",
-						FLAGS & (WIPE_ALL | WIPE_COMMENT) ? "\e[9;02m" : "",
-						DATA_COL,
-						(char *)datum.data_start, _EOL);
+			printf("%*s %s%s%s%s", OUT_WIDTH, "Comment:",
+					FLAGS & (WIPE_ALL | WIPE_COMMENT) ? STRIKE_THROUGH : "",
+					(char *)datum.data_start, _EOL,
+					FLAGS & (WIPE_ALL | WIPE_COMMENT) ? END_COL : "");
+
 			if (FLAGS & (WIPE_ALL | WIPE_COMMENT))
 				wipe_data(file, &datum);
 	  }
@@ -856,10 +851,11 @@ get_miscellaneous_data(file_t *file, int endian)
 			if (isalpha(*q) || isdigit(*q))
 			{
 				++count;
-				printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Comment:",
-						FLAGS & (WIPE_ALL | WIPE_COMMENT) ? "\e[9;02m" : "",
-						DATA_COL,
-						q, _EOL);
+				printf("%*s %s%s%s%s", OUT_WIDTH, "Comment:",
+						FLAGS & (WIPE_ALL | WIPE_COMMENT) ? STRIKE_THROUGH : "",
+						q, _EOL,
+						FLAGS & (WIPE_ALL | WIPE_COMMENT) ? END_COL : "");
+
 				if (FLAGS & (WIPE_ALL | WIPE_COMMENT))
 					wipe_data(file, &datum);
 			}
@@ -867,10 +863,11 @@ get_miscellaneous_data(file_t *file, int endian)
 		else
 		{
 			++count;
-			printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Comment:",
-					FLAGS & (WIPE_ALL | WIPE_COMMENT) ? "\e[9;02m" : "",
-					DATA_COL,
-					q, _EOL);
+			printf("%*s %s%s%s%s", OUT_WIDTH, "Comment:",
+					FLAGS & (WIPE_ALL | WIPE_COMMENT) ? STRIKE_THROUGH : "",
+					q, _EOL,
+					FLAGS & (WIPE_ALL | WIPE_COMMENT) ? END_COL : "");
+
 			if (FLAGS & (WIPE_ALL | WIPE_COMMENT))
 				wipe_data(file, &datum);
 		}
@@ -881,10 +878,11 @@ get_miscellaneous_data(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Unique ID:",
-					FLAGS & (WIPE_ALL | WIPE_UID) ? "\e[9;02m" : "",
-					DATA_COL,
-					(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Unique ID:",
+				FLAGS & (WIPE_ALL | WIPE_UID) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_UID) ? END_COL : "");
+
 		if (FLAGS & (WIPE_ALL | WIPE_UID))
 				wipe_data(file, &datum);
 	}
@@ -893,10 +891,10 @@ get_miscellaneous_data(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Image ID:",
-					FLAGS & (WIPE_ALL | WIPE_MISC) ? "\e[9;02m" : "",
-					DATA_COL,
-					(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Image ID:",
+				FLAGS & (WIPE_ALL | WIPE_MISC) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_MISC) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_MISC))
 			wipe_data(file, &datum);
@@ -906,10 +904,10 @@ get_miscellaneous_data(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Copyright:",
-					FLAGS & (WIPE_ALL | WIPE_MISC) ? "\e[9;02m" : "",
-					DATA_COL,
-					(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Copyright:",
+				FLAGS & (WIPE_ALL | WIPE_MISC) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_MISC) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_MISC))
 			wipe_data(file, &datum);
@@ -919,10 +917,10 @@ get_miscellaneous_data(file_t *file, int endian)
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
-		printf("%*s %s%s%s\e[m%s", OUT_WIDTH, "Camera Owner:",
-				FLAGS & (WIPE_ALL | WIPE_MISC) ? "\e[9;02m" : "",
-				DATA_COL,
-				(char *)datum.data_start, _EOL);
+		printf("%*s %s%s%s%s", OUT_WIDTH, "Camera Owner:",
+				FLAGS & (WIPE_ALL | WIPE_MISC) ? STRIKE_THROUGH : "",
+				(char *)datum.data_start, _EOL,
+				FLAGS & (WIPE_ALL | WIPE_MISC) ? END_COL : "");
 
 		if (FLAGS & (WIPE_ALL | WIPE_MISC))
 			wipe_data(file, &datum);
