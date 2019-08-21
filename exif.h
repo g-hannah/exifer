@@ -7,7 +7,7 @@
 # define _EOL "\n"
 #endif
 
-#define BUILD			"0.2.14"
+#define BUILD			"0.2.15"
 
 #define clear_struct(s) memset((s), 0, sizeof(*(s)))
 
