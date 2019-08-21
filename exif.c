@@ -17,11 +17,6 @@
 
 #define DATA_COL			"\e[38;5;88m"
 
-#define clear_struct(s) memset((s), 0, sizeof(*(s)))
-
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
-
 static struct sigaction new_act, old_act;
 static sigjmp_buf				__sigsegv__;
 
