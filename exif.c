@@ -178,11 +178,14 @@ static void *
 exif_start(file_t *file)
 {
 	unsigned char *p = NULL;
+	unsigned char *end = NULL;
 
 	assert(file);
 	assert(file->map);
 	p = (unsigned char *)file->map;
-	while (strncmp((char *)APP1_MARKER, (char *)p, 2) != 0 && p < (unsigned char *)file->map_end)
+	end = (unsigned char *)file->map_end;
+
+	while (memcmp((char *)APP1_MARKER, (char *)p, 2) && p < end)
 		++p;
 
 	return (void *)p;
@@ -412,11 +415,17 @@ get_gps_data(file_t *file, int endian)
 	datum_t		datum;
 	void			*p = NULL;
 	int				count;
-	double		latitude_deg, latitude_min, latitude_sec;
-	double		longitude_deg, longitude_min, longitude_sec;
-	char			latitude_ref[16], longitude_ref[16];
-	char			tmp_buf[256];
-	unsigned int numerator, denominator;
+	double		latitude_deg;
+	double		latitude_min;
+	double		latitude_sec;
+	double		longitude_deg;
+	double		longitude_min;
+	double		longitude_sec;
+	static char	latitude_ref[16];
+	static char longitude_ref[16];
+	static char	tmp_buf[256];
+	unsigned int numerator;
+	unsigned int denominator;
 
 	setup_signal_handler();
 	count = 0;
@@ -508,7 +517,10 @@ get_gps_data(file_t *file, int endian)
 
 		assert(datum.data_start);
 		++count;
+
 		q = (char *)datum.data_start;
+
+		memset(latitude_ref, 0, 16);
 
 		if (*q == 0x4e)
 			strcpy(latitude_ref, "N");
@@ -525,8 +537,12 @@ get_gps_data(file_t *file, int endian)
 	{
 		char		*q = NULL;
 
+		assert(datum.data_start);
 		++count;
+
 		q = (char *)datum.data_start;
+
+		memset(longitude_ref, 0, 16);
 
 		if (*q == 0x45)
 			strcpy(longitude_ref, "E");
@@ -611,6 +627,7 @@ get_gps_data(file_t *file, int endian)
 	if (count)
 	{
 		memset(tmp_buf, 0, 256);
+
 		snprintf(tmp_buf, 256, "%08.4lf° %08.4lf' %08.4lf'' %s%s",
 				latitude_deg, latitude_min, latitude_sec,
 				latitude_ref,
@@ -621,6 +638,7 @@ get_gps_data(file_t *file, int endian)
 				(FLAGS & (WIPE_ALL | WIPE_GPS)) ? STRIKE_THROUGH : "", tmp_buf, _EOL);
 
 		memset(tmp_buf, 0, 256);
+
 		snprintf(tmp_buf, 256, "%08.4lf° %08.4lf' %08.4lf'' %s%s",
 				longitude_deg, longitude_min, longitude_sec,
 				longitude_ref,
@@ -935,13 +953,12 @@ void *
 get_limit(file_t *file)
 {
 	unsigned char		*p = NULL;
-	uint16_t *exif_lenp = NULL;
 	uint16_t exif_len;
 
 	exif_len = 0;
 	p = (unsigned char *)exif_start(file);
-	exif_lenp = (uint16_t *)(p + 2);
-	exif_len = ntohs(*exif_lenp);
+	exif_len = ntohs(*((uint16_t *)(p + 2)));
+
 	if (exif_len > 0x2000)
 		exif_len = 0x2000;
 	
