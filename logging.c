@@ -10,7 +10,7 @@ void
 log_error(const char *fmt, ...)
 {
 	int 			save;
-	char			tmp[1024];
+	static char			tmp[1024];
 	va_list		args;
 
 	save = errno;
