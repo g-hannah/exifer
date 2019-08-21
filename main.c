@@ -34,6 +34,8 @@ main(int argc, char *argv[])
 	if (!file_ok(argv[1]))
 		goto fail;
 
+	print_logo();
+
 	clear_struct(&statb);
 	lstat(argv[1], &statb);
 
