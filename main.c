@@ -12,6 +12,12 @@
 #include "file.h"
 #include "logging.h"
 
+/*
+ * TODO
+ *	Add option for user to rename the image file using exif data.
+ *	E.g., img.jpg => 20200620_213028_Canon_PowerShot_SX160_IS.jpg
+ */
+
 static int get_options(int, char *[]) __wur;
 static void usage(int) __attribute__((__noreturn__));
 //static void print_logo(void);
