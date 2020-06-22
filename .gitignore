@@ -1,7 +1,7 @@
 .*
 !.gitignore
 *.o
-exif_wipe
+exifer
 *.txt
 *.jpg
 *.JPG
