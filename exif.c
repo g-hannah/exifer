@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <hash_bucket.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <stdint.h>
@@ -15,12 +16,88 @@
 #include "exif.h"
 #include "logging.h"
 
-#define DATA_COL				"\x1b[38;5;88m"
+#define UNIX_EPOCH_DATE	"1970:01:01 00:00:00"
+#define MILLENIUM_DATE	"2000:01:01 00:00:00"
+
+/*
+ * Indices into the exif_flag_t array
+ */
+enum
+{
+	TIME_CREATION = 0,
+	TIME_ORIGINAL,
+	TIME_MODIFIED,
+	TIME_DIGITIZED,
+	HARDWARE_MODEL,
+	HARDWARE_MANUFACTURER,
+	IMAGE_COPYRIGHT,
+	IMAGE_COMMENT,
+	IMAGE_UNIQUE_ID,
+	IMAGE_SOFTWARE,
+	IMAGE_PROCESSING_SOFTWARE,
+	MISC_HOST_COMPUTER,
+	MISC_INK_NAMES,
+	MISC_MAKERNOTE,
+	MISC_IMAGE_DESCRIPTION,
+	CAMERA_OWNER,
+	CAMERA_SERIAL_NUMBER,
+	CAMERA_UNIQUE_CAMERA_MODEL,
+	CAMERA_LABEL,
+	CAMERA_BODY_SERIAL,
+	NR_DATA
+};
+
+static exif_flag_t EXIF_FLAGS[NR_DATA] =
+{
+	{ "Created", "\x90\x04", TYPE_ASCII },
+	{ "Original", "\x90\x03", TYPE_ASCII },
+	{ "Modified", "\x01\x32", TYPE_ASCII },
+	{ "Digitized", "\x90\x02", TYPE_ASCII },
+	{ "Camera Model", "\x01\x10", TYPE_ASCII },
+	{ "Camera Manufacturer", "\x01\x0f", TYPE_ASCII },
+	{ "Image Copyright", "\x82\x98", TYPE_ASCII },
+	{ "Image Comment", "\x90\x86", TYPE_COMMENT },
+	{ "Image Unique ID", "\xa4\x20", TYPE_ASCII },
+	{ "Image Software", "\x01\x31", TYPE_ASCII },
+	{ "Image Processing Software", "\x00\x0b", TYPE_ASCII },
+	{ "Host Computer", "\x01\x3c", TYPE_ASCII },
+	{ "Ink Names", "\x01\x4d", TYPE_ASCII },
+	{ "Makernote", "\x92\x7c", TYPE_ASCII },
+	{ "Image Description", "\x01\x0e", TYPE_ASCII },
+	{ "Camera Owner", "\xa4\x30", TYPE_ASCII },
+	{ "Camera Serial Number", "\xc6\x2f", TYPE_ASCII },
+	{ "Camera Unique Model", "\xc6\x14", TYPE_ASCII },
+	{ "Camera Label", "\xc7\xa1", TYPE_ASCII },
+	{ "Camera Body Serial", "\xa4\x31", TYPE_ASCII }
+};
+
+enum
+{	
+	GPS_LATITUDE_LETTER = 0,
+	GPS_LONGITUDE_LETTER,
+	GPS_VERSION_ID,
+	GPS_LATITUDE,
+	GPS_LONGITUDE,
+	GPS_SATELLITES,
+	GPS_NR_DATA
+};
+
+static exif_flag_t GPS_FLAGS[GPS_NR_DATA] =
+{
+	{ "N/S", "\x00\x01", TYPE_ASCII },
+	{ "E/W", "\x00\x03", TYPE_ASCII },
+	{ "GPS Version ID", "\x00\x00", TYPE_BYTE },
+	{ "GPS Latitude", "\x00\x02", TYPE_RATIONAL },
+	{ "GPS Longitude", "\x00\x04", TYPE_RATIONAL },
+	{ "GPS Satellites", "\x00\x05", TYPE_ASCII }
+};
+
+#define DATA_COL	"\x1b[38;5;88m"
 #define STRIKE_THROUGH	"\x1b[9;02m"
-#define END_COL					"\x1b[m"
+#define END_COL		"\x1b[m"
 
 static struct sigaction new_act, old_act;
-static sigjmp_buf				__sigsegv__;
+static sigjmp_buf __sigsegv__;
 
 static void
 sigsegv_handler(int signo)
@@ -66,7 +143,7 @@ restore_signal_handler(void)
 int
 random_byte(unsigned char *c)
 {
-	int						fd;
+	int fd;
 	struct stat statb;
 	ssize_t bytes = 0;
 	int rv;
@@ -118,59 +195,34 @@ random_byte(unsigned char *c)
 static void
 wipe_data(file_t *file, datum_t *datum)
 {
-	unsigned char		*p = NULL;
-	unsigned char		*s = NULL;
-	unsigned char		*e = NULL;
-	uint16_t				*u16 = NULL;
-	uint32_t				*u32 = NULL;
-	int							i;
-	int							rv;
+	return;
+}
 
-	p = s = (unsigned char *)datum->data_start;
-	e = (unsigned char *)datum->data_end;
+#define METADATA_LENGTH 12
+/**
+ * Zero out the exif data and the meta-data that points
+ * to where this data is within the file.
+ * We have the tag (2 bytes), followed by the type (2 bytes),
+ * the length (4 bytes), and the offset (4 bytes).
+ */
+static void
+zero_data(file_t *file, datum_t *datum)
+{
+	assert(file);
+	assert(datum);
 
 	if (mprotect(file->map, file->size, PROT_READ|PROT_WRITE) < 0)
 	{
 		perror("wipe_data: failed to set file map to PROT_READ|PROT_WRITE\n");
+		return;
 	}
 
-	for (i = 0; i < 8; ++i)
-	{
-		unsigned char rc = 0;
+	memset(datum->tag_p, 0, METADATA_LENGTH);
+	memset(datum->data_start, 0, (char *)datum->data_end - (char *)datum->data_start);
 
-		if ((rv = random_byte(&rc)) < 0)
-		{
-			fprintf(stderr, "Unable to %s overwrit%s exif data with pseudo-random data%s\n",
-				!i ? "" : "finish",
-				!i ? "e" : "ing",
-				!i ? "-- just zeroing out" : "-- zeroing out");
-			break;
-		}
+	if (mprotect(file->map, file->size, PROT_READ) < 0)
+		perror("zero_data: error switching off read/write permissions for mapped file contents\n");
 
-		while (p < e)
-			*p++ = rc;
-		p = s;
-	}
-
-	p = s;
-	while (p < e)
-		*p++ = 0;
-
-	u16 = (uint16_t *)datum->tag_p;
-	*u16 &= ~(*u16);
-	u16 = (uint16_t *)datum->type_p;
-	*u16 &= ~(*u16);
-	u32 = (uint32_t *)datum->len_p;
-	*u32 &= ~(*u32);
-	u32 = (uint32_t *)datum->offset_p;
-	*u32 &= ~(*u32);
-
-	u32 = NULL;
-	u16 = NULL;
-
-	p = s = e = NULL;
-
-	mprotect(file->map, file->size, PROT_READ);
 	return;
 }
 
@@ -327,12 +379,211 @@ get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t ty
 	}
 }
 
+static char __tag[2];
+static char *get_tag(char *t, int e)
+{
+	assert(t);
+
+	uint16_t val;
+
+	val = *((uint16_t *)t);
+	if (!e)
+	{
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+		val = htons(val); // will do nothing if ntohs()
+#else
+		val = ntohs(val);
+#endif
+		memcpy(__tag, &val, 2);
+	}
+	else
+		memcpy(__tag, &val, 2);
+
+	return __tag;
+}
+
+double *
+parse_gps_values(void *p)
+{
+	assert(p);
+
+	uint32_t *ptr = (uint32_t *)p;
+
+	double deg, am, as;
+	uint32_t num, denom;
+
+	num = *ptr++;
+	denom = *ptr++;
+
+	if (0 == denom)
+		goto fail;
+
+	deg = (double)num/(double)denom;
+
+	num = *ptr++;
+	denom = *ptr++;
+
+	if (0 == denom)
+		goto fail;
+
+	am = (double)num/(double)denom;
+
+
+	num = *ptr++;
+	denom = *ptr++;
+
+	if (0 == denom)
+		return NULL;
+
+	as = (double)num/(double)denom;
+
+	double *ret = calloc(3, sizeof(double));
+	assert(ret);
+
+	ret[0] = deg;
+	ret[1] = am;
+	ret[2] = as;
+
+	return ret;
+
+fail:
+	return NULL;	
+}
+
+/**
+ * Extract the exif data corresponding to the
+ * flags in EXIF_FLAGS. GPS data needs to be
+ * treated specially and cannot be done in the
+ * for-loop.
+ *
+ * @param file Structure with pointer to mapped file contents
+ * @param endian Non-zero means the exif-data is big-endian
+ */
+int
+extract_data(file_t *file, int endian)
+{
+	int i;
+	datum_t datum;
+	void *p = NULL;
+	exif_flag_t *flag = NULL;
+	char *tag;
+
+	assert(file);
+
+	for (i = 0; i < NR_DATA; ++i)
+	{
+		clear_struct(&datum);
+
+		flag = &EXIF_FLAGS[i];
+
+	/*
+	 * Gets the tag in the correct endianness.
+	 */
+		tag = get_tag(flag->flag, endian);
+		p = get_data_offset(file, &datum, tag, 2, flag->type, endian);
+
+		if (!p || datum.type != flag->type || !datum.len)
+			continue;
+
+#define STRIKETHROUGH	"\e[3;09m"
+#define END		"\e[m"
+		fprintf(stdout, "%*s: %s%s%s\n",
+			(int)NAME_WIDTH, flag->name,
+			FLAGS & WIPE_ALL ? STRIKETHROUGH : "",
+			(char *)datum.data_start,
+			FLAGS & WIPE_ALL ? END : "");
+
+		if (FLAGS & WIPE_ALL)
+			zero_data(file, &datum);
+	}
+
+	char lat_NS[2];
+	char long_EW[2];
+
+	flag = &GPS_FLAGS[GPS_LATITUDE_LETTER];
+	tag = get_tag(flag->flag, endian);
+	clear_struct(&datum);
+	p = get_data_offset(file, &datum, tag, 2, flag->type, endian);
+
+/*
+ * Assume that failure to find a piece of GPS data means no GPS data encoded.
+ */
+	if (!p || datum.type != flag->type)
+		goto end;
+
+	memcpy(lat_NS, datum.data_start, 1);
+	lat_NS[1] = 0;
+
+	flag = &GPS_FLAGS[GPS_LONGITUDE_LETTER];
+	tag = get_tag(flag->flag, endian);
+	clear_struct(&datum);
+	p = get_data_offset(file, &datum, tag, 2, flag->type, endian);
+
+	if (!p || datum.type != flag->type)
+		goto end;
+
+	memcpy(long_EW, datum.data_start, 1);
+	long_EW[1] = 0;
+
+	flag = &GPS_FLAGS[GPS_LATITUDE];
+	tag = get_tag(flag->flag, endian);
+	clear_struct(&datum);
+	p = get_data_offset(file, &datum, tag, 2, flag->type, endian);
+
+	if (!p || datum.type != flag->type)
+		goto end;
+
+	double *vals = NULL;
+	double latd, latam, latas;
+	double lngd, lngam, lngas;
+
+	vals = parse_gps_values(datum.data_start);
+	if (!vals)
+		goto end;
+
+	latd = vals[0];
+	latam = vals[1];
+	latas = vals[2];
+
+	free(vals);
+
+	flag = &GPS_FLAGS[GPS_LONGITUDE];
+	tag = get_tag(flag->flag, endian);
+	clear_struct(&datum);
+	p = get_data_offset(file, &datum, tag, 2, flag->type, endian);
+	if (!p || datum.type != flag->type)
+		goto end;
+
+	vals = parse_gps_values(datum.data_start);
+	if (!vals)
+		goto end;
+
+	lngd = vals[0];
+	lngam = vals[1];
+	lngas = vals[2];
+
+	free(vals);
+
+	fprintf(stderr,
+		"%*s: %sLat %.2lf°%.2lf'%.2lf'' %s, Long %.2lf°%.2lf'%.2lf'' %s%s\n",
+		(int)NAME_WIDTH, "Location",
+		FLAGS & WIPE_ALL ? STRIKETHROUGH : "",
+		latd, latam, latas, lat_NS, lngd, lngam, lngas, long_EW,
+		FLAGS & WIPE_ALL ? END : "");
+
+	if (FLAGS & WIPE_ALL)
+		zero_data(file, &datum);
+
+end:
+	return 0;
+}
+
 int
 get_date_time(file_t *file, int endian)
 {
-	int								count;
-	datum_t						datum;
-	void							*p = NULL;
+	int count;
+	datum_t datum;
+	void *p = NULL;
 
 	setup_signal_handler();
 	count = 0;
@@ -412,18 +663,18 @@ get_gps_data(file_t *file, int endian)
 {
 	assert(file);
 
-	datum_t		datum;
-	void			*p = NULL;
-	int				count;
-	double		latitude_deg;
-	double		latitude_min;
-	double		latitude_sec;
-	double		longitude_deg;
-	double		longitude_min;
-	double		longitude_sec;
-	static char	latitude_ref[16];
+	datum_t datum;
+	void *p = NULL;
+	int count;
+	double latitude_deg;
+	double latitude_min;
+	double latitude_sec;
+	double longitude_deg;
+	double longitude_min;
+	double longitude_sec;
+	static char latitude_ref[16];
 	static char longitude_ref[16];
-	static char	tmp_buf[256];
+	static char tmp_buf[256];
 	unsigned int numerator;
 	unsigned int denominator;
 
@@ -435,12 +686,13 @@ get_gps_data(file_t *file, int endian)
 	{
 		++count;
 
-		char		*ptr = NULL;
-		char		*tptr = NULL;
+		char *ptr = NULL;
+		char *tptr = NULL;
 		unsigned char c;
 
 		ptr = (char *)datum.data_start;
 		tptr = tmp_buf;
+
 		while (ptr < (char *)((char *)datum.data_start + (size_t)datum.len))
 		{
 			c = *ptr++;
@@ -477,8 +729,8 @@ get_gps_data(file_t *file, int endian)
 	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x07" : (char *)"\x07\x00", 2, TYPE_RATIONAL, endian);
 	if (p && datum.type == TYPE_RATIONAL && datum.len == 3)
 	{
-		unsigned int		*uptr = NULL;
-		double					hours, minutes, seconds;
+		unsigned int *uptr = NULL;
+		double hours, minutes, seconds;
 
 		assert(datum.data_start);
 		uptr = (unsigned int *)datum.data_start;
@@ -952,9 +1204,12 @@ get_miscellaneous_data(file_t *file, int endian)
 void *
 get_limit(file_t *file)
 {
-	unsigned char		*p = NULL;
-	uint16_t exif_len;
+	unsigned char *p = NULL;
+	//uint16_t exif_len;
 
+	p = (unsigned char *)exif_start(file);
+	return (void *)((char *)p + 0x1000);
+/*
 	exif_len = 0;
 	p = (unsigned char *)exif_start(file);
 	exif_len = ntohs(*((uint16_t *)(p + 2)));
@@ -963,4 +1218,5 @@ get_limit(file_t *file)
 		exif_len = 0x2000;
 	
 	return (void *)(p + (size_t)(exif_len));
+*/
 }
