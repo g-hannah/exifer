@@ -4,7 +4,7 @@ CC=gcc
 WFLAGS=-Wall -Werror
 CFILES=main.c exif.c file.c logging.c
 OFILES=main.o exif.o file.o logging.o
-BINARY=exif_wipe
+BINARY=exifer
 
 .PHONY: clean
 
