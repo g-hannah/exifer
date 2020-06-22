@@ -14,17 +14,17 @@
 
 static int get_options(int, char *[]) __wur;
 static void usage(int) __attribute__((__noreturn__));
-static void print_logo(void);
+//static void print_logo(void);
 
 int
 main(int argc, char *argv[])
 {
-	int							fd;
-	unsigned char		*p = NULL;
-	struct stat			statb;
-	void						*data = NULL;
-	int							endianness;
-	int							cnt;
+	int fd;
+	unsigned char *p = NULL;
+	struct stat statb;
+	void *data = NULL;
+	int endianness;
+	//int cnt;
 
 	prog_name = argv[0];
 
@@ -34,13 +34,14 @@ main(int argc, char *argv[])
 	if (!file_ok(argv[1]))
 		goto fail;
 
-	print_logo();
+	//print_logo();
 
 	clear_struct(&statb);
 	lstat(argv[1], &statb);
 
 	infile.size = statb.st_size;
 
+#if 0
 	fprintf(stdout, "\e[38;5;19m  File: %s%s"
 			"  Size: %lu bytes%s"
 			"  Opts: %s%s%s%s%s%s%s%s"
@@ -54,6 +55,7 @@ main(int argc, char *argv[])
 			FLAGS & WIPE_UID ? "Wipe UID " : "",
 			FLAGS & WIPE_COMMENT ? "Wipe Comment " : "",
 			_EOL, _EOL);
+#endif
 
 	fd = open(argv[1], O_RDWR);
 
@@ -97,18 +99,21 @@ main(int argc, char *argv[])
 	EXIF_DATA_OFFSET = (off_t)(p - (unsigned char *)data);
 
 	if (p == ((unsigned char *)data + statb.st_size))
-	  {
+	{
 			errno = EPROTO;
 			log_error("No endianness marker in file");
 			goto fail;
-	  }
+	}
 	else
 	if (strncmp((char *)"MM", (char *)p, 2) == 0)
 		endianness = 1;
 	else
 		endianness = 0;
 
-
+	fprintf(stdout, "\n** %s **\n\n", infile.fullpath);
+	extract_data(&infile, (const int)endianness);
+	fputc('\n', stdout);
+#if 0
 	fprintf(stdout, "\e[38;5;8m  ----------------EXIF Data----------------\e[m%s%s", _EOL, _EOL);
 
 	/* Date and time data */
@@ -135,15 +140,22 @@ main(int argc, char *argv[])
 	cnt = get_miscellaneous_data(&infile, (const int)endianness);
 	if (!cnt)
 		printf(" (None)%s", _EOL);
+#endif
 
-	end:
+end:
 	if (data)
-		{ munmap(data, statb.st_size); data = NULL; }
+	{
+		munmap(data, statb.st_size);
+		data = NULL;
+	}
 	exit(EXIT_SUCCESS);
 
-	fail:
+fail:
 	if (data)
-		{ munmap(data, statb.st_size); data = NULL; }
+	{
+		munmap(data, statb.st_size);
+		data = NULL;
+	}
 	exit(EXIT_FAILURE);
 }
 
@@ -153,42 +165,68 @@ get_options(int argc, char *argv[])
 	int					i;
 
 	FLAGS = 0;
+
 	for (i = 1; i < argc; ++i)
-	  {
-			if (strncmp("--help", argv[i], 6) == 0)
-				usage(EXIT_SUCCESS);
-			else
-			if (strcmp("--wipe-all", argv[i]) == 0)
-				FLAGS |= WIPE_ALL;
-			else
-			if (strcmp("--wipe-date", argv[i]) == 0)
-				FLAGS |= WIPE_DATE;
-			else
-			if (strcmp("--wipe-device", argv[i]) == 0)
-				FLAGS |= WIPE_DEVICE;
-			else
-			if (strcmp("--wipe-gps", argv[i]) == 0)
-				FLAGS |= WIPE_GPS;
-			else
-			if (strcmp("--wipe-uid", argv[i]) == 0)
-				FLAGS |= WIPE_UID;
-			else
-			if (strcmp("--wipe-comment", argv[i]) == 0)
-				FLAGS |= WIPE_COMMENT;
-			else
-			if (strcmp("--wipe-misc", argv[i]) == 0)
-				FLAGS |= WIPE_MISC;
-	  }
+	{
+		if (!strcmp("--date", argv[i]))
+		{
+			++i;
+			if (i >= argc)
+			{
+				fprintf(stderr, "--date requires one or more arguments\n");
+				goto fail;
+			}
+
+			int j = i;
+			char *p = NULL;
+			char *q = argv[j];
+			char *e = (argv[j] + strlen(argv[j]));
+
+			while (p < e)
+			//while (j < argc && argv[j][0] != '-')
+			{
+				p = memchr(q, ',', (e - q));
+				if (!p)
+					p = e;
+			}
+		}
+		if (strncmp("--help", argv[i], 6) == 0)
+			usage(EXIT_SUCCESS);
+		else
+		if (strcmp("--wipe-all", argv[i]) == 0)
+			FLAGS |= WIPE_ALL;
+		else
+		if (strcmp("--wipe-date", argv[i]) == 0)
+			FLAGS |= WIPE_DATE;
+		else
+		if (strcmp("--wipe-device", argv[i]) == 0)
+			FLAGS |= WIPE_DEVICE;
+		else
+		if (strcmp("--wipe-gps", argv[i]) == 0)
+			FLAGS |= WIPE_GPS;
+		else
+		if (strcmp("--wipe-uid", argv[i]) == 0)
+			FLAGS |= WIPE_UID;
+		else
+		if (strcmp("--wipe-comment", argv[i]) == 0)
+			FLAGS |= WIPE_COMMENT;
+		else
+		if (strcmp("--wipe-misc", argv[i]) == 0)
+			FLAGS |= WIPE_MISC;
+	}
 
 	if ((FLAGS & WIPE_ALL)
-			&& (FLAGS & WIPE_DATE || FLAGS & WIPE_DEVICE || FLAGS & WIPE_GPS))
-	  {
-			fprintf(stderr, "--wipe-all cannot be specified with other options\n");
-			errno = EINVAL;
-			return -1;
-	  }
+		&& (FLAGS & WIPE_DATE || FLAGS & WIPE_DEVICE || FLAGS & WIPE_GPS))
+	{
+		fprintf(stderr, "--wipe-all cannot be specified with other options\n");
+		errno = EINVAL;
+		goto fail;
+	}
 
 	return 0;
+
+fail:
+	return -1;
 }
 
 void
@@ -218,6 +256,7 @@ usage(int exit_type)
 	exit(exit_type);
 }
 
+#if 0
 #define LINE_COL		"\e[38;5;232m"
 #define VERSION_COL	"\e[38;5;124m"
 #define BANNER_COL	"\e[38;5;208m"
@@ -265,3 +304,4 @@ print_logo(void)
 
 	return;
 }
+#endif
