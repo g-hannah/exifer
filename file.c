@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -6,12 +7,8 @@
 int
 file_ok(const char *const filename)
 {
-	if (!filename)
-	{
-		fprintf(stderr, "Must specify an image file\n");
-		return 0;
-	}
-	else
+	assert(filename);
+
 	if (access(filename, F_OK) != 0)
 	{
 			fprintf(stderr, "%s does not exist\n", filename);
