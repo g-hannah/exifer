@@ -61,6 +61,7 @@ typedef struct file_t
 } file_t;
 
 #define WIPE_SENSITIVE	0x00000001u
+#define FL_FAKE_DATES	0x00000002u
 
 typedef struct Options Options;
 
