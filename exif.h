@@ -8,7 +8,7 @@ int count;
 #define _EOL "\n"
 #define NAME_WIDTH 25
 
-#define BUILD	"0.2.15"
+#define BUILD	"0.3.0"
 
 #define clear_struct(s) memset((s), 0, sizeof(*(s)))
 
