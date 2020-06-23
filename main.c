@@ -122,7 +122,7 @@ main(int argc, char *argv[])
 	fputc('\n', stdout);
 
 	if (0 == n)
-		fprintf(stderr, "    No exif data\n");
+		fprintf(stderr, "    No exif data\n\n");
 #if 0
 	fprintf(stdout, "\e[38;5;8m  ----------------EXIF Data----------------\e[m%s%s", _EOL, _EOL);
 
