@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+int count;
+
 #define _EOL "\n"
 #define NAME_WIDTH 25
 
@@ -58,13 +60,7 @@ typedef struct file_t
 	void *new_end;
 } file_t;
 
-#define WIPE_DATE	0x1u
-#define WIPE_DEVICE	0x2u
-#define WIPE_GPS	0x4u
-#define WIPE_UID	0x8u
-#define WIPE_COMMENT	0x10u
-#define WIPE_MISC	0x20u
-#define WIPE_ALL	0x40u
+#define WIPE_SENSITIVE	0x00000001u
 
 typedef struct Options Options;
 
@@ -79,10 +75,10 @@ int extract_data(file_t *, int);
 void *get_limit(file_t *) __nonnull ((1)) __wur;
 
 /* Global Variables */
-char			*prog_name;
-off_t			EXIF_DATA_OFFSET;
+char		*prog_name;
+off_t		EXIF_DATA_OFFSET;
 file_t		infile;
-void 			*lim;
+void 		*lim;
 unsigned	FLAGS;
 
 #endif
