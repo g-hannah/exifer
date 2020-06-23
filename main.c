@@ -205,6 +205,11 @@ get_options(int argc, char *argv[])
 		else
 		if (strcmp("--wipe-sensitive", argv[i]) == 0)
 			FLAGS |= WIPE_SENSITIVE;
+		else
+		if (strcmp("--fake-dates", argv[i]) == 0)
+		{
+			FLAGS |= FL_FAKE_DATES;
+		}
 	}
 
 	return 0;
