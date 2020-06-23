@@ -3,14 +3,13 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <setjmp.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 #include "exif.h"
 #include "logging.h"
@@ -19,6 +18,9 @@
 
 #define UNIX_EPOCH_DATE	"1970:01:01 00:00:00"
 #define MILLENIUM_DATE	"2000:01:01 00:00:00"
+
+#define WRITEABLE(f) mprotect((f)->map, (f)->size, PROT_READ|PROT_WRITE)
+#define READABLE(f) mprotect((f)->map, (f)->size, PROT_READ)
 
 int count = 0;
 
@@ -111,6 +113,13 @@ static exif_flag_t GPS_FLAGS[GPS_NR_DATA] =
 #define DATA_COL	"\x1b[38;5;88m"
 #define STRIKE_THROUGH	"\x1b[9;02m"
 #define END_COL		"\x1b[m"
+
+static void
+__attribute__((constructor)) __Exifer_Init(void)
+{
+	srand(time(NULL));
+	return;
+}
 
 int
 random_byte(unsigned char *c)
@@ -293,7 +302,7 @@ G32BIT_VAL(uint32_t val, int endian)
 }
 
 static void *
-get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t type, int endian)
+get_data(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t type, int endian)
 {
 	unsigned char *p = NULL;
 
@@ -555,7 +564,7 @@ extract_sensitive(file_t *file, int endian)
 	 * Gets the tag in the correct endianness.
 	 */
 		tag = get_tag(flag->flag, endian);
-		p = get_data_offset(file, &datum, tag, 2, flag->type, endian);
+		p = get_data(file, &datum, tag, 2, flag->type, endian);
 
 		//add_datum(sensitive, &datum);
 
@@ -582,7 +591,7 @@ extract_sensitive(file_t *file, int endian)
 	flag = &GPS_FLAGS[GPS_VERSION_ID];
 	tag = get_tag(flag->flag, endian);
 
-	p = get_data_offset(file, &datum, tag, 2, flag->type, endian);
+	p = get_data(file, &datum, tag, 2, flag->type, endian);
 	if (p && datum.type == flag->type && datum.len > 0)
 	{
 		char *ptr = (char *)datum.data_start;
@@ -625,7 +634,7 @@ extract_sensitive(file_t *file, int endian)
 	flag = &GPS_FLAGS[GPS_DATESTAMP];
 	tag = get_tag(flag->flag, endian);
 
-	p = get_data_offset(file, &datum, tag, 2, flag->type, endian);
+	p = get_data(file, &datum, tag, 2, flag->type, endian);
 	if (p && datum.type == flag->type && datum.len > 0)
 	{
 		fprintf(stdout, "%*s: %s%s%s\n",
@@ -660,7 +669,7 @@ extract_sensitive(file_t *file, int endian)
 	flag = &GPS_FLAGS[GPS_LATITUDE_LETTER];
 	tag = get_tag(flag->flag, endian);
 
-	p = get_data_offset(file, &datum, tag, 2, flag->type, endian);
+	p = get_data(file, &datum, tag, 2, flag->type, endian);
 
 /*
  * Assume that failure to find a piece of GPS data means no GPS data encoded.
@@ -674,7 +683,7 @@ extract_sensitive(file_t *file, int endian)
 	flag = &GPS_FLAGS[GPS_LONGITUDE_LETTER];
 	tag = get_tag(flag->flag, endian);
 
-	p = get_data_offset(file, &datum, tag, 2, flag->type, endian);
+	p = get_data(file, &datum, tag, 2, flag->type, endian);
 
 	if (!p || datum.type != flag->type)
 		goto end;
@@ -685,7 +694,7 @@ extract_sensitive(file_t *file, int endian)
 	flag = &GPS_FLAGS[GPS_LATITUDE];
 	tag = get_tag(flag->flag, endian);
 
-	p = get_data_offset(file, &datum, tag, 2, flag->type, endian);
+	p = get_data(file, &datum, tag, 2, flag->type, endian);
 
 	if (!p || datum.type != flag->type)
 		goto end;
@@ -707,7 +716,7 @@ extract_sensitive(file_t *file, int endian)
 	flag = &GPS_FLAGS[GPS_LONGITUDE];
 	tag = get_tag(flag->flag, endian);
 
-	p = get_data_offset(file, &datum, tag, 2, flag->type, endian);
+	p = get_data(file, &datum, tag, 2, flag->type, endian);
 	if (!p || datum.type != flag->type)
 		goto end;
 
@@ -818,6 +827,78 @@ __unused wipe_sensitive(file_t *file, data_array_t *arr)
 	return;
 }
 
+static data_array_t *
+get_date_data(file_t *file, int endian)
+{
+	assert(file);
+
+	exif_flag_t *flag;
+	char *tag;
+	void *p;
+	datum_t datum;
+
+	data_array_t *arr = new_data_array();
+	assert(arr);
+
+	flag = &SENSITIVE_DATA[TIME_CREATION];
+	tag = get_tag(flag->flag, endian);
+	p = get_data(file, &datum, tag, 2, flag->type, endian);
+
+	if (p && datum.type == flag->type && datum.len > 0)
+		add_datum(arr, &datum);
+
+	flag = &SENSITIVE_DATA[TIME_ORIGINAL];
+	tag = get_tag(flag->flag, endian);
+	p = get_data(file, &datum, tag, 2, flag->type, endian);
+
+	if (p && datum.type == flag->type && datum.len > 0)
+		add_datum(arr, &datum);
+
+	flag = &SENSITIVE_DATA[TIME_MODIFIED];
+	tag = get_tag(flag->flag, endian);
+	p = get_data(file, &datum, tag, 2, flag->type, endian);
+
+	if (p && datum.type == flag->type && datum.len > 0)
+		add_datum(arr, &datum);
+
+	flag = &SENSITIVE_DATA[TIME_DIGITIZED];
+	tag = get_tag(flag->flag, endian);
+	p = get_data(file, &datum, tag, 2, flag->type, endian);
+
+	if (p && datum.type == flag->type && datum.len > 0)
+		add_datum(arr, &datum);
+
+	return arr;
+}
+
+static void
+replace_dates_with_fake(data_array_t *dates)
+{
+	assert(dates);
+
+	int i;
+	int nr = dates->nr;
+	datum_t *d;
+	time_t now = time(NULL);
+	struct tm *tm = NULL;
+
+	now -= (rand()%now);
+	tm = gmtime(&now);
+
+	static char stime[256];
+	strftime(stime, 256, "%Y:%m:%d %H:%M:%S", tm);
+
+	for (i = 0; i < nr; ++i)
+	{
+		d = &dates->data[i];
+		strcpy((char *)d->data_start, stime);
+	}
+
+	fprintf(stderr, "Replaced dates in exif data with random date %s\n", stime);
+
+	return;
+}
+
 /**
  * @param file Structure with pointer to mapped file contents
  * @param endian Non-zero means the exif-data is big-endian
@@ -827,7 +908,27 @@ extract_data(file_t *file, int endian)
 {
 	assert(file);
 
-	return extract_sensitive(file, endian);
+	int c;
+
+	if (FLAGS & FL_FAKE_DATES)
+	{
+		data_array_t *dates = get_date_data(file, endian);
+		assert(dates);
+
+		WRITEABLE(file);
+		replace_dates_with_fake(dates);
+		READABLE(file);
+
+		c = dates->nr;
+
+		free_data_array(dates);
+	}
+	else
+	{
+		c = extract_sensitive(file, endian);
+	}
+
+	return c;
 	//show_sensitive(sensitive);
 
 	//if (FLAGS & WIPE_SENSITIVE)
@@ -847,7 +948,7 @@ get_date_time(file_t *file, int endian)
 	setup_signal_handler();
 	count = 0;
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x02" : (char *)"\x02\x90", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x90\x02" : (char *)"\x02\x90", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -860,7 +961,7 @@ get_date_time(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x03" : (char *)"\x03\x90", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x90\x03" : (char *)"\x03\x90", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -873,7 +974,7 @@ get_date_time(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x04" : (char *)"\x04\x90", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x90\x04" : (char *)"\x04\x90", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -886,7 +987,7 @@ get_date_time(file_t *file, int endian)
 				wipe_data(file, &datum);
 	}
 	 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x32" : (char *)"\x32\x01", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x01\x32" : (char *)"\x32\x01", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -899,7 +1000,7 @@ get_date_time(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\xc7\x1b" : (char *)"\x1b\xc7", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\xc7\x1b" : (char *)"\x1b\xc7", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -940,7 +1041,7 @@ get_gps_data(file_t *file, int endian)
 	setup_signal_handler();
 	count = 0;
 
-	p = get_data_offset(file, &datum, (char *)"\x00\x00", 2, TYPE_BYTE, endian);
+	p = get_data(file, &datum, (char *)"\x00\x00", 2, TYPE_BYTE, endian);
 	if (p && datum.type == TYPE_BYTE && datum.len == 4)
 	{
 		++count;
@@ -971,7 +1072,7 @@ get_gps_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x1d" : (char *)"\x1d\x00", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x00\x1d" : (char *)"\x1d\x00", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		assert(datum.data_start);
@@ -985,7 +1086,7 @@ get_gps_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x07" : (char *)"\x07\x00", 2, TYPE_RATIONAL, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x00\x07" : (char *)"\x07\x00", 2, TYPE_RATIONAL, endian);
 	if (p && datum.type == TYPE_RATIONAL && datum.len == 3)
 	{
 		unsigned int *uptr = NULL;
@@ -1021,7 +1122,7 @@ get_gps_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x01" : (char *)"\x01\x00", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x00\x01" : (char *)"\x01\x00", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII && datum.len == 2)
 	{
 		char		*q = NULL;
@@ -1043,7 +1144,7 @@ get_gps_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x03" : (char *)"\x03\x00", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x00\x03" : (char *)"\x03\x00", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII && datum.len == 2)
 	{
 		char		*q = NULL;
@@ -1065,7 +1166,7 @@ get_gps_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x02" : (char *)"\x02\x00", 2, TYPE_RATIONAL, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x00\x02" : (char *)"\x02\x00", 2, TYPE_RATIONAL, endian);
 	if (p && datum.type == TYPE_RATIONAL && datum.len == 3)
 	{
 		unsigned int		*uptr = NULL;
@@ -1093,7 +1194,7 @@ get_gps_data(file_t *file, int endian)
 		uptr = NULL;
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x04" : (char *)"\x04\x00", 2, TYPE_RATIONAL, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x00\x04" : (char *)"\x04\x00", 2, TYPE_RATIONAL, endian);
 	if (p && datum.type == TYPE_RATIONAL && datum.len == 3)
 	{
 		unsigned int		*uptr = NULL;
@@ -1121,7 +1222,7 @@ get_gps_data(file_t *file, int endian)
 		uptr = NULL;
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x05" : (char *)"\x05\x00", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x00\x05" : (char *)"\x05\x00", 2, TYPE_ASCII, endian);
 
 	if (p && datum.type == TYPE_ASCII)
 	{
@@ -1175,7 +1276,7 @@ get_make_model(file_t *file, int endian)
 	setup_signal_handler();
 	count = 0;
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x0f" : (char *)"\x0f\x01", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x01\x0f" : (char *)"\x0f\x01", 2, TYPE_ASCII, endian);
 
 	if (p && datum.type == TYPE_ASCII)
 	{
@@ -1189,7 +1290,7 @@ get_make_model(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x10" : (char *)"\x10\x01", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x01\x10" : (char *)"\x10\x01", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -1202,7 +1303,7 @@ get_make_model(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\xc6\x14" : (char *)"\x14\xc6", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\xc6\x14" : (char *)"\x14\xc6", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -1215,7 +1316,7 @@ get_make_model(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\xc6\x2f" : (char *)"\x2f\xc6", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\xc6\x2f" : (char *)"\x2f\xc6", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -1228,7 +1329,7 @@ get_make_model(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\xc7\xa1" : (char *)"\xa1\xc7", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\xc7\xa1" : (char *)"\xa1\xc7", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -1241,7 +1342,7 @@ get_make_model(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\xa4\x31" : (char *)"\x31\xa4", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\xa4\x31" : (char *)"\x31\xa4", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -1254,7 +1355,7 @@ get_make_model(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x31" : (char *)"\x31\x01", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x01\x31" : (char *)"\x31\x01", 2, TYPE_ASCII, endian);
 	if (p)
 	{
 		++count;
@@ -1267,7 +1368,7 @@ get_make_model(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x00\x0b" : (char *)"\x0b\x00", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x00\x0b" : (char *)"\x0b\x00", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -1280,7 +1381,7 @@ get_make_model(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x3c" : (char *)"\x3c\x01", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x01\x3c" : (char *)"\x3c\x01", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -1293,7 +1394,7 @@ get_make_model(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x4d" : (char *)"\x4d\x01", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x01\x4d" : (char *)"\x4d\x01", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -1306,7 +1407,7 @@ get_make_model(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x92\x7c" : (char *)"\x7c\x92", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x92\x7c" : (char *)"\x7c\x92", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -1335,7 +1436,7 @@ get_miscellaneous_data(file_t *file, int endian)
 	count = 0;
 
 	/* Get image description */
-	p = get_data_offset(file, &datum, endian ? (char *)"\x01\x0e" : (char *)"\x0e\x01", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x01\x0e" : (char *)"\x0e\x01", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -1349,7 +1450,7 @@ get_miscellaneous_data(file_t *file, int endian)
 	}
 
 	/* Get comments */
-	p = get_data_offset(file, &datum, endian ? (char *)"\x90\x86" : (char *)"\x86\x90", 2, TYPE_COMMENT, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x90\x86" : (char *)"\x86\x90", 2, TYPE_COMMENT, endian);
 	if (p && datum.type == TYPE_COMMENT)
 	  {
 			++count;
@@ -1363,7 +1464,7 @@ get_miscellaneous_data(file_t *file, int endian)
 	  }
 
 	clear_struct(&datum);
-	p = get_data_offset(file, &datum, endian ? (char *)"\x92\x86" : (char *)"\x86\x92", 2, TYPE_COMMENT, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x92\x86" : (char *)"\x86\x92", 2, TYPE_COMMENT, endian);
 	if (p && datum.type == TYPE_COMMENT)
 	{
 		char			*q = NULL;
@@ -1403,7 +1504,7 @@ get_miscellaneous_data(file_t *file, int endian)
 	}
 
 	/* Get unique image ID */
-	p = get_data_offset(file, &datum, endian ? (char *)"\xa4\x20" : (char *)"\x20\xa4", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\xa4\x20" : (char *)"\x20\xa4", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -1416,7 +1517,7 @@ get_miscellaneous_data(file_t *file, int endian)
 				wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x80\x0d" : (char *)"\x0d\x80", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x80\x0d" : (char *)"\x0d\x80", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -1429,7 +1530,7 @@ get_miscellaneous_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\x82\x98" : (char *)"\x98\x82", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\x82\x98" : (char *)"\x98\x82", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
@@ -1442,7 +1543,7 @@ get_miscellaneous_data(file_t *file, int endian)
 			wipe_data(file, &datum);
 	}
 
-	p = get_data_offset(file, &datum, endian ? (char *)"\xa4\x30" : (char *)"\x30\xa4", 2, TYPE_ASCII, endian);
+	p = get_data(file, &datum, endian ? (char *)"\xa4\x30" : (char *)"\x30\xa4", 2, TYPE_ASCII, endian);
 	if (p && datum.type == TYPE_ASCII)
 	{
 		++count;
