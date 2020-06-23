@@ -391,7 +391,8 @@ get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t ty
 				dptr->data_end = (void *)(p + dptr->len);
 		}
 
-		assert(dptr->data_end < file->map_end);
+		if (dptr->data_end >= file->map_end)
+			return NULL;
 
 		p = NULL;
 		return (void *)dptr;
@@ -589,6 +590,7 @@ extract_sensitive(file_t *file, int endian)
 		char *t;
 		char *e = ptr + 4;
 		static char version_id[64];
+		int bad = 0;
 
 		t = version_id;
 
@@ -596,20 +598,26 @@ extract_sensitive(file_t *file, int endian)
 		{
 			*t++ = (*ptr++ + '0');
 			*t++ = '.';
+
+			if (*(t-2) < '0' || *(t-2) > '9')
+				++bad;
 		}
 
 		*--t = 0;
 
-		fprintf(stdout, "%*s: %s%s%s\n",
-			(int)NAME_WIDTH, flag->name,
-			FLAGS & WIPE_SENSITIVE ? STRIKETHROUGH : "",
-			version_id,
-			FLAGS & WIPE_SENSITIVE ? END : "");
+		if (!bad)
+		{
+			fprintf(stdout, "%*s: %s%s%s\n",
+				(int)NAME_WIDTH, flag->name,
+				FLAGS & WIPE_SENSITIVE ? STRIKETHROUGH : "",
+				version_id,
+				FLAGS & WIPE_SENSITIVE ? END : "");
 
-		if (FLAGS & WIPE_SENSITIVE)
-			zero_data(file, &datum);
+			if (FLAGS & WIPE_SENSITIVE)
+				zero_data(file, &datum);
 
-		++count;
+			++count;
+		}
 	}
 
 /*
