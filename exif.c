@@ -379,7 +379,38 @@ get_data_offset(file_t *file, datum_t *dptr, char *str, size_t slen, uint16_t ty
 	}
 }
 
+/**
+ * The compiler will complain about this being defined but unused
+ * if we are on a little endian machine since the preprocessor
+ * will not make use of this function (see get_tag() func), so
+ * use the unused attribute.
+ */
+static uint32_t
+__attribute__((unused)) __reverse_bytes32(uint32_t val)
+{
+	uint8_t t;
+	uint8_t *p = (uint8_t *)&val;
+
+	t = p[3];
+	p[3] = p[0];
+	p[0] = t;
+
+	t = p[2];
+	p[2] = p[1];
+	p[1] = t;
+
+	return *((uint32_t *)p);
+}
+
 static char __tag[2];
+
+/**
+ * Tags have been encoded in big endian format.
+ *
+ * On big endian machines, both ntohs() and htons()
+ * won't flip the bytes. We therefore need to manually
+ * flip them if we are big endian.
+ */
 static char *get_tag(char *t, int e)
 {
 	assert(t);
@@ -389,8 +420,8 @@ static char *get_tag(char *t, int e)
 	val = *((uint16_t *)t);
 	if (!e)
 	{
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-		val = htons(val); // will do nothing if ntohs()
+#if __BYTE_ORDER == __BIG_ENDIAN
+		val = __reverse_bytes32(val);
 #else
 		val = ntohs(val);
 #endif
@@ -402,40 +433,51 @@ static char *get_tag(char *t, int e)
 	return __tag;
 }
 
+/**
+ * Parse two uint32_t numbers representing
+ * the numerator and denominator and calculate
+ * their division, and increment *P by
+ * 8 bytes.
+ */
+double
+parse_rational(void **p)
+{
+	assert(p);
+
+	uint32_t *ptr = *(uint32_t **)p;
+	uint32_t n, d;
+
+	assert(ptr);
+
+	n = *ptr++;
+	d = *ptr;
+
+	*((uint32_t **)p) += 2;
+
+	if (0 == d)
+		return -1.0;
+
+	return (double)n/(double)d;
+}
+
 double *
 parse_gps_values(void *p)
 {
 	assert(p);
 
-	uint32_t *ptr = (uint32_t *)p;
-
 	double deg, am, as;
-	uint32_t num, denom;
 
-	num = *ptr++;
-	denom = *ptr++;
-
-	if (0 == denom)
+	deg = parse_rational(&p);
+	if (-1.0 == deg)
 		goto fail;
 
-	deg = (double)num/(double)denom;
-
-	num = *ptr++;
-	denom = *ptr++;
-
-	if (0 == denom)
+	am = parse_rational(&p);
+	if (-1.0 == am)
 		goto fail;
 
-	am = (double)num/(double)denom;
-
-
-	num = *ptr++;
-	denom = *ptr++;
-
-	if (0 == denom)
-		return NULL;
-
-	as = (double)num/(double)denom;
+	as = parse_rational(&p);
+	if (-1.0 == as)
+		goto fail;
 
 	double *ret = calloc(3, sizeof(double));
 	assert(ret);
@@ -565,7 +607,7 @@ extract_data(file_t *file, int endian)
 	free(vals);
 
 	fprintf(stderr,
-		"%*s: %sLat %.2lf°%.2lf'%.2lf'' %s, Long %.2lf°%.2lf'%.2lf'' %s%s\n",
+		"%*s: %sLat %.2lf°%.2lf'%.2lf″ %s, Long %.2lf°%.2lf'%.2lf″ %s%s\n",
 		(int)NAME_WIDTH, "Location",
 		FLAGS & WIPE_ALL ? STRIKETHROUGH : "",
 		latd, latam, latas, lat_NS, lngd, lngam, lngas, long_EW,
