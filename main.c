@@ -117,8 +117,12 @@ main(int argc, char *argv[])
 		endianness = 0;
 
 	fprintf(stdout, "\n** %s **\n\n", infile.fullpath);
-	extract_data(&infile, (const int)endianness);
+
+	int n = extract_data(&infile, (const int)endianness);
 	fputc('\n', stdout);
+
+	if (0 == n)
+		fprintf(stderr, "    No exif data\n");
 #if 0
 	fprintf(stdout, "\e[38;5;8m  ----------------EXIF Data----------------\e[m%s%s", _EOL, _EOL);
 
@@ -199,34 +203,8 @@ get_options(int argc, char *argv[])
 		if (strncmp("--help", argv[i], 6) == 0)
 			usage(EXIT_SUCCESS);
 		else
-		if (strcmp("--wipe-all", argv[i]) == 0)
-			FLAGS |= WIPE_ALL;
-		else
-		if (strcmp("--wipe-date", argv[i]) == 0)
-			FLAGS |= WIPE_DATE;
-		else
-		if (strcmp("--wipe-device", argv[i]) == 0)
-			FLAGS |= WIPE_DEVICE;
-		else
-		if (strcmp("--wipe-gps", argv[i]) == 0)
-			FLAGS |= WIPE_GPS;
-		else
-		if (strcmp("--wipe-uid", argv[i]) == 0)
-			FLAGS |= WIPE_UID;
-		else
-		if (strcmp("--wipe-comment", argv[i]) == 0)
-			FLAGS |= WIPE_COMMENT;
-		else
-		if (strcmp("--wipe-misc", argv[i]) == 0)
-			FLAGS |= WIPE_MISC;
-	}
-
-	if ((FLAGS & WIPE_ALL)
-		&& (FLAGS & WIPE_DATE || FLAGS & WIPE_DEVICE || FLAGS & WIPE_GPS))
-	{
-		fprintf(stderr, "--wipe-all cannot be specified with other options\n");
-		errno = EINVAL;
-		goto fail;
+		if (strcmp("--wipe-sensitive", argv[i]) == 0)
+			FLAGS |= WIPE_SENSITIVE;
 	}
 
 	return 0;
@@ -239,25 +217,13 @@ void
 usage(int exit_type)
 {
 	fprintf(stdout,
-				"Usage:%s"
-				"%s"
-				"%s <image> [options]%s"
-				"%s"
-				"  --wipe-all\t\tWipe all EXIF data%s"
-				"  --wipe-date\t\tWipe Date/Time data%s"
-				"  --wipe-device\t\tWipe Make/Model data%s"
-				"  --wipe-gps\t\tWipe GPS data%s"
-				"  --wipe-uid\t\tWipe the Unique Image ID%s"
-				"  --wipe-comment\t\tWipe Image Comment%s"
-				"  --wipe-misc\t\tWipe Miscellaneous Data%s"
-				"%s"
-				"(No options specified = just view data)%s",
-				_EOL,
-				_EOL,
-				prog_name, _EOL,
-				_EOL,
-				_EOL, _EOL, _EOL, _EOL, _EOL, _EOL,
-				_EOL, _EOL, _EOL);
+		"Exifer usage\n\n"
+		"exifer <image> [options]\n"
+		"\n"
+		"  --wipe-sensitive    Wipe sensitive exif data, such as\n"
+		"                      times and dates, location information,\n"
+		"                      camera model/manufacturer, serial numbers\n"
+		"                      and unique image/camera IDs\n");
 
 	exit(exit_type);
 }
